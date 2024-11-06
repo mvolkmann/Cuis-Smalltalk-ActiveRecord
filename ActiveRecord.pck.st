@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 4 November 2024 at 6:36:47 pm'!
+'From Cuis7.1 [latest update: #6814] on 5 November 2024 at 6:43:54 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 14!
+!provides: 'ActiveRecord' 1 18!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -101,12 +101,14 @@ all
 	rs := stmt execute.
 	^ rs.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/3/2024 16:25:11'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/5/2024 18:40:10'!
 find: idNumber
 	| queryString row rs stmt |
 	
 	self initialize.
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
+	queryString logAs: 'queryString'.
+	self halt.
 	stmt := Conn query: queryString.
 	rs := stmt execute.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
@@ -126,7 +128,17 @@ establishConnection: dsnString
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ]
 ! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/3/2024 09:33:10'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/5/2024 18:41:47'!
+newRow
+	"Creates a new row in table and assumes there is a id column with type autoincrement integer."
+	| queryString stmt |
+	queryString := 'insert into ', self tableName.
+	stmt := Conn query: queryString.
+	^ stmt execute.
+
+	! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/5/2024 18:42:23'!
 newRow: row
 	| instance |
 	instance := self new.
@@ -137,3 +149,12 @@ newRow: row
 tableName
 	^ self name asPlural asLowercase.
 ! !
+
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
+logAs: aString
+    ('{1} = {2}' format: {aString. self}) print! !
+
+!ODBCColumn methodsFor: '*ActiveRecord' stamp: 'RMV 11/4/2024 19:02:41'!
+dataType
+	"answer the receiver's data type"
+	^ dataType! !
