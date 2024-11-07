@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 5 November 2024 at 6:43:54 pm'!
+'From Cuis7.1 [latest update: #6814] on 6 November 2024 at 6:52:14 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 18!
+!provides: 'ActiveRecord' 1 23!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -91,18 +91,34 @@ doesNotUnderstand: aMessage
 row: anODBCRow
 	row := anODBCRow! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/3/2024 16:24:43'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:11'!
 all
-	| queryString rs stmt |
+	"Answer an ODBCResultSet containing all rows in the corresponding table."
+	| queryString stmt |
 	
 	self initialize.
 	queryString​ := 'select * from ', self tableName.
 	stmt := Conn query: queryString.
-	rs := stmt execute.
-	^ rs.! !
+	^​ stmt execute.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/5/2024 18:40:10'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:16'!
+columns
+	"Answer an array of ODBCColumn objects describing each column in the corresponding table."
+	| queryString rs stmt |
+	
+	self initialize.
+
+	"This query returns an empty ODBCResultSet for the corresponding table
+	which can be used to get information about its columns."
+	queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
+
+	stmt := Conn query: queryString.
+	rs := stmt execute.
+	^ rs columns.! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:06'!
 find: idNumber
+	"Answer new instance of this class that represents the table row with a given id."
 	| queryString row rs stmt |
 	
 	self initialize.
@@ -114,39 +130,80 @@ find: idNumber
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/3/2024 09:15:04'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:48:42'!
 disconnect
+	"Close the database connect if there is one."
+
 	Conn ifNotNil: [
 		Conn close.
 		Conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/3/2024 16:29:47'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:49:35'!
 establishConnection: dsnString	
+	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
+
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ]
 ! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/5/2024 18:41:47'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:37'!
 newRow
-	"Creates a new row in table and assumes there is a id column with type autoincrement integer."
-	| queryString stmt |
-	queryString := 'insert into ', self tableName.
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	| columns names queryString size stmt stream values |
+	
+	"Get all the columns except the id column."
+	columns := self columns reject: [:column | column name = #id].
+	
+	size := columns size.
+	names := columns collect: [:column | column name].
+	values := columns collect: [:column |
+		| type |
+		type := column dataType.
+		type caseOf: {
+			['Double'] -> [0].
+			['Integer'] -> [0].
+			['VarChar'] -> ['""'].
+		} otherwise: [nil].
+	].
+	
+	stream := WriteStream on: (String new: 200).
+	stream nextPutAll: 'insert into '.
+	stream nextPutAll: self tableName.
+	stream nextPutAll: ' ('.
+	names withIndexDo: [:colName :index |
+		stream nextPutAll: colName.
+		index < size ifTrue: [ stream nextPutAll: ', ' ].
+	].
+	stream nextPutAll: ') values ('.
+	values withIndexDo: [:value :index |
+		stream nextPutAll: value asString.
+		index < size ifTrue: [ stream nextPutAll: ', ' ].
+	].
+	stream nextPutAll: ')'.
+	queryString := stream contents.
+	queryString logAs: 'queryString'.
+	
 	stmt := Conn query: queryString.
 	^ stmt execute.
 
 	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/5/2024 18:42:23'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:47'!
 newRow: row
+	"Create and answer a new instance of this class with a row instance variable."
 	| instance |
+
 	instance := self new.
 	instance row: row.
 	^instance.! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/3/2024 16:24:30'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:52:12'!
 tableName
+	"Answer the table name the corresponds to the current class."
+
 	^ self name asPlural asLowercase.
 ! !
 
