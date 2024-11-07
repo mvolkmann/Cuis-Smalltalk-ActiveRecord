@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 6 November 2024 at 6:52:14 pm'!
+'From Cuis7.1 [latest update: #6814] on 6 November 2024 at 7:24:18 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 23!
+!provides: 'ActiveRecord' 1 31!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -36,24 +36,27 @@ Todo class
 	instanceVariableNames: ''!
 
 
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/4/2024 18:30:22'!
+!ARBase methodsFor: 'deleting' stamp: 'RMV 11/6/2024 19:23:09'!
 destroy
-	| queryString stmt |
+	"Delete the table row corresponding to the current object from the database
+	and answer the ODBCResultSet."
+	| queryString |
 	
 	queryString​ := 'delete from {1} where id={2}' format: {self class tableName. self id}.
-	stmt := Conn query: queryString.
-	^​ stmt execute.! !
+	^​ Conn execute: queryString.! !
 
-!ARBase methodsFor: 'private' stamp: 'RMV 11/3/2024 20:19:21'!
+!ARBase methodsFor: 'private' stamp: 'RMV 11/6/2024 19:10:47'!
 changed: zeroOrOne
 	"This method is implemented in Object, but we need it to trigger doesNotUnderstand:."
 	| message |
+
 	message := Message selector: #changed argument: zeroOrOne. 
 	^ self doesNotUnderstand: message! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/3/2024 20:23:40'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:23:45'!
 doesNotUnderstand: aMessage
-	"handles requests to modify an instance variable"
+	"Handle requests to get or set an instance variable
+	and update the corresponding database row."
 	| keyword keywords |
 
 	keywords := aMessage keywords.
@@ -79,7 +82,7 @@ doesNotUnderstand: aMessage
 			tableName := self class tableName.
 			"TODO: This assumes the new value is a string."
 			query := 'update {1} set {2}="{3}" where id={4}' format: {tableName. instVarName. arg. self id}.
-			Conn query: query :: execute.
+			Conn execute: query.
 		]
 		ifFalse: [
 			"Simulate getting an instance variable."
@@ -87,24 +90,23 @@ doesNotUnderstand: aMessage
 		].
 ! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/3/2024 09:33:44'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:13:19'!
 row: anODBCRow
+	"Set the row instance variable of the current object to a given ODBCRow."
+
 	row := anODBCRow! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:11'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:18:37'!
 all
 	"Answer an ODBCResultSet containing all rows in the corresponding table."
-	| queryString stmt |
 	
 	self initialize.
-	queryString​ := 'select * from ', self tableName.
-	stmt := Conn query: queryString.
-	^​ stmt execute.! !
+	^ Conn execute: 'select * from ', self tableName.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:16'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:20:24'!
 columns
 	"Answer an array of ODBCColumn objects describing each column in the corresponding table."
-	| queryString rs stmt |
+	| queryString rs |
 	
 	self initialize.
 
@@ -112,21 +114,17 @@ columns
 	which can be used to get information about its columns."
 	queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
 
-	stmt := Conn query: queryString.
-	rs := stmt execute.
+	rs := Conn execute: queryString.
 	^ rs columns.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 18:50:06'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:21:17'!
 find: idNumber
 	"Answer new instance of this class that represents the table row with a given id."
-	| queryString row rs stmt |
+	| queryString row rs |
 	
 	self initialize.
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
-	queryString logAs: 'queryString'.
-	self halt.
-	stmt := Conn query: queryString.
-	rs := stmt execute.
+	rs := Conn execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
@@ -148,11 +146,11 @@ establishConnection: dsnString
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ]
 ! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:37'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 19:22:36'!
 newRow
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| columns names queryString size stmt stream values |
+	| columns names queryString size stream values |
 	
 	"Get all the columns except the id column."
 	columns := self columns reject: [:column | column name = #id].
@@ -186,9 +184,7 @@ newRow
 	queryString := stream contents.
 	queryString logAs: 'queryString'.
 	
-	stmt := Conn query: queryString.
-	^ stmt execute.
-
+	^ Conn execute: queryString.
 	! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:47'!
