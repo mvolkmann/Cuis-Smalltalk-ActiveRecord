@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 6 November 2024 at 7:24:18 pm'!
+'From Cuis7.1 [latest update: #6814] on 6 November 2024 at 8:04:23 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 31!
+!provides: 'ActiveRecord' 1 34!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -128,6 +128,10 @@ find: idNumber
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 20:03:56'!
+connection
+	^ Conn! !
+
 !ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:48:42'!
 disconnect
 	"Close the database connect if there is one."
@@ -146,7 +150,7 @@ establishConnection: dsnString
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ]
 ! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 19:22:36'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 19:28:53'!
 newRow
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -184,6 +188,7 @@ newRow
 	queryString := stream contents.
 	queryString logAs: 'queryString'.
 	
+	"TODO: Why does this return an ODBCResultSet with rowCount 1, but next returns nil?"
 	^ Conn execute: queryString.
 	! !
 
@@ -195,6 +200,55 @@ newRow: row
 	instance := self new.
 	instance row: row.
 	^instance.! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 20:00:44'!
+newRowWith: assocArray
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	| columns dict names queryString size stream values |
+	
+	dict := assocArray asDictionary.
+	
+	"Get all the columns except the id column."
+	columns := self columns reject: [:column | column name = #id].
+	
+	size := columns size.
+	names := columns collect: [:column | column name].
+	values := columns collect: [:column |
+		| type value |
+		value := dict at: column name.
+		value ifNil: [
+			"Use a default value of the correct type."
+			type := column dataType.
+			value := type caseOf: {
+				['Double'] -> [0].
+				['Integer'] -> [0].
+				['VarChar'] -> [''].
+			} otherwise: [nil].
+		].
+		value isKindOf: String :: ifTrue: ['"', value, '"'] ifFalse: [value].
+	].
+	
+	stream := WriteStream on: (String new: 200).
+	stream nextPutAll: 'insert into '.
+	stream nextPutAll: self tableName.
+	stream nextPutAll: ' ('.
+	names withIndexDo: [:colName :index |
+		stream nextPutAll: colName.
+		index < size ifTrue: [ stream nextPutAll: ', ' ].
+	].
+	stream nextPutAll: ') values ('.
+	values withIndexDo: [:value :index |
+		stream nextPutAll: value asString.
+		index < size ifTrue: [ stream nextPutAll: ', ' ].
+	].
+	stream nextPutAll: ')'.
+	queryString := stream contents.
+	queryString logAs: 'queryString'.
+	
+	"TODO: Why does this return an ODBCResultSet with rowCount 1, but next returns nil?"
+	^ Conn execute: queryString.
+	! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:52:12'!
 tableName
