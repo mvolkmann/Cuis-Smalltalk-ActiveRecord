@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 10 November 2024 at 8:09:56 pm'!
+'From Cuis7.1 [latest update: #6814] on 10 November 2024 at 8:28:50 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 49!
+!provides: 'ActiveRecord' 1 51!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -80,7 +80,7 @@ destroy
 	queryString​ := 'delete from {1} where id={2}' format: {self class tableName. self id}.
 	^​ Conn execute: queryString.! !
 
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/10/2024 18:58:08'!
+!ARBase methodsFor: 'deleting' stamp: 'RMV 11/10/2024 20:28:05'!
 inspect
 	"Answer string description of corresponding database record."
 	| stream |
@@ -97,13 +97,7 @@ inspect
 			value := self perform: name.
 			stream nextPutAll: name.
 			stream nextPutAll: ': '.
-			value isString
-				ifTrue: [
-					stream nextPut: Character singleQuote.
-					stream nextPutAll: value.
-					stream nextPut: Character singleQuote.
-				]
-				ifFalse: [stream nextPutAll: value asString].
+			stream nextPutAll: (self class toString: value).
 		]
 		separatedBy: [
 			stream nextPutAll: ', '.
@@ -163,11 +157,12 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/9/2024 19:22:43'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:14:31'!
 all
 	"Answer an ODBCResultSet containing all rows in the corresponding table."
-	
-	^ Conn execute: 'select * from ', self tableName.! !
+	|rs|
+	rs := Conn execute: 'select * from ', self tableName.
+	^ rs asTable collect: [:row | self newRow: row].! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/9/2024 19:22:37'!
 columns
@@ -201,7 +196,19 @@ find: idNumber
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/9/2024 19:36:48'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:28:27'!
+findBy: anAssociation
+	"Answer collection of new instances of this class that represents matching table rows."
+	| column queryString rs value |
+	
+	column := anAssociation key.
+	value := self toString: anAssociation value.
+	queryString​ := 'select * from {1} where {2}={3}'
+		format: {self tableName. column. value}.
+	rs := Conn execute: queryString.
+	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:15:55'!
 findWhere: conditionArray
 	"Answer new instances of this class that represent matching table rows."
 	| queryString rs size stream |
@@ -218,7 +225,6 @@ findWhere: conditionArray
 		index < size ifTrue: [ stream nextPutAll: ' and ' ].
 	].
 	queryString := stream contents.
-	queryString logAs: 'queryString'.
 	
 	rs := Conn execute: queryString.
 	^ rs asTable collect: [:row | self newRow: row].! !
@@ -368,6 +374,12 @@ newRow: row
 	instance row: row.
 	^instance.! !
 
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 20:23:06'!
+quoteIfString: value
+	^ value isString
+		ifTrue: ['''{1}''' format: {value}]
+		ifFalse: [value]! !
+
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 16:23:03'!
 tableName
 	"Answer table name that corresponds to current class, computed lazily."
@@ -386,6 +398,13 @@ tableName
 tableName: aString
 	tableName := aString
 ! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 20:27:09'!
+toString: value
+	"Answer string representation of value and include quotes if already a string."
+	^ value isString
+		ifTrue: ['''{1}''' format: {value}]
+		ifFalse: [value asString]! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
