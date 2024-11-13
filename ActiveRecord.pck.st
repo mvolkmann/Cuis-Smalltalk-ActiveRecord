@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 13 November 2024 at 8:39:04 am'!
+'From Cuis7.1 [latest update: #6814] on 13 November 2024 at 8:49:27 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 61!
+!provides: 'ActiveRecord' 1 62!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -494,16 +494,13 @@ validateColumn: aSymbol
 		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/13/2024 08:30:18'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/13/2024 08:47:36'!
 validateColumn: aSymbol value: anObject
-	| column message template type valid |
+	| column template type valid |
 
 	column := self validateColumn: aSymbol.
 	type := column dataType.
 	
-	template := '{1} is invalid value for table {2} column {3} type {4}'.
-	message := template format: {anObject. self tableName. aSymbol. type}.
-
 	valid := type caseOf: {
 		[#Double] -> [anObject isFloat or: [anObject isInteger]].
 		[#Integer] -> [anObject isInteger].
@@ -513,7 +510,10 @@ validateColumn: aSymbol value: anObject
 		Error signal: (template format: {self tableName. aSymbol. type}).
 	].
 
-	valid ifFalse: [ Error signal: message ].
+	valid ifFalse: [
+		template := '{1} is invalid value for table {2} column {3} type {4}'.
+		Error signal: (template format: {anObject. self tableName. aSymbol. type}).
+	].
 ! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
