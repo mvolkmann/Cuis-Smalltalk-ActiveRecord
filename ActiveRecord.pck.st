@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 11 November 2024 at 8:24:37 pm'!
+'From Cuis7.1 [latest update: #6814] on 12 November 2024 at 8:43:19 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 56!
+!provides: 'ActiveRecord' 1 59!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -13,7 +13,7 @@ Object subclass: #ARBase
 	category: 'ActiveRecord'!
 !classDefinition: 'ARBase class' category: #ActiveRecord!
 ARBase class
-	instanceVariableNames: 'tableName'!
+	instanceVariableNames: 'columns tableName'!
 
 !classDefinition: #ApplicationRecord category: #ActiveRecord!
 ARBase subclass: #ApplicationRecord
@@ -80,7 +80,7 @@ destroy
 	queryString​ := 'delete from {1} where id={2}' format: {self class tableName. self id}.
 	^​ Conn execute: queryString.! !
 
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/10/2024 20:28:05'!
+!ARBase methodsFor: 'deleting' stamp: 'RMV 11/12/2024 18:54:23'!
 inspect
 	"Answer string description of corresponding database record."
 	| stream |
@@ -97,7 +97,7 @@ inspect
 			value := self perform: name.
 			stream nextPutAll: name.
 			stream nextPutAll: ': '.
-			stream nextPutAll: (self class toString: value).
+			stream nextPutAll: (self class sqlString: value).
 		]
 		separatedBy: [
 			stream nextPutAll: ', '.
@@ -157,7 +157,7 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/11/2024 20:21:56'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/12/2024 18:54:23'!
 update: assocArray
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
@@ -170,7 +170,7 @@ update: assocArray
 		do: [:assoc |
 			stream nextPutAll: assoc key.
 			stream nextPutAll: ' = '.
-			stream nextPutAll: (self class toString: (assoc value)).
+			stream nextPutAll: (self class sqlString: (assoc value)).
 		]
 		separatedBy: [
 			stream nextPutAll: ', '.
@@ -183,47 +183,25 @@ update: assocArray
 	
 	^ Conn execute: queryString.	! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/11/2024 20:06:25'!
-all
-	"Answer a collection of instances of this class that represent all the rows in the corresponding table."
-	|rs|
-
-	rs := Conn execute: 'select * from ', self tableName.
-	^ rs asTable collect: [:row | self newRow: row].! !
-
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/9/2024 19:22:37'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/12/2024 18:55:43'!
 columns
-	"Answer an array of ODBCColumn objects describing each column in the corresponding table."
-	| queryString rs |
+	"Answer a Dictionary where keys are column names and values are ODBCColumn objects
+	describing each column in the corresponding table, computed lazily."
 	
-	"This query returns an empty ODBCResultSet for the corresponding table
-	which can be used to get information about its columns."
-	queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
-
-	rs := Conn execute: queryString.
-	^ rs columns.! !
-
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/9/2024 19:22:48'!
-find: idNumber
-	"Answer new instance of this class that represents the table row with a given id."
-	| queryString row rs |
+	columns ifNil: [
+		| queryString rs |
 	
-	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
-	rs := Conn execute: queryString.
-	row := rs next. "ODBCResultSet is a subclass of Stream."
-	^ self newRow: row.! !
+		"This query returns an empty ODBCResultSet for the corresponding table
+		which can be used to get information about its columns."
+		queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:28:27'!
-findBy: anAssociation
-	"Answer collection of new instances of this class that represents matching table rows."
-	| column queryString rs value |
-	
-	column := anAssociation key.
-	value := self toString: anAssociation value.
-	queryString​ := 'select * from {1} where {2}={3}'
-		format: {self tableName. column. value}.
-	rs := Conn execute: queryString.
-	^ rs asTable collect: [:row | self newRow: row].! !
+		rs := Conn execute: queryString.
+		"columns := rs columns."
+		columns := rs columns collect: [:column | column name -> column] :: asDictionary.
+	].
+
+	^ columns.
+! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/9/2024 19:22:16'!
 count
@@ -235,89 +213,19 @@ count
 	rs := Conn execute: queryString.
 	^ rs next at: (column asSymbol).! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/11/2024 19:57:47'!
-destroyAll
-	"Deletes all rows from the corresponding table."
-	
-	^ Conn execute: 'delete from ', tableName.
-! !
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 16:23:03'!
+tableName
+	"Answer table name that corresponds to current class, computed lazily."
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/11/2024 20:00:00'!
-destroyBy: anAssociation
-	"Deletes all matching rows in the corresponding table."
-	| column queryString value |
-	
-	column := anAssociation key.
-	value := self toString: anAssociation value.
-	queryString​ := 'delete from {1} where {2}={3}'
-		format: {self tableName. column. value}.
-	^​ Conn execute: queryString.
-! !
-
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:15:55'!
-findWhere: conditionArray
-	"Answer new instances of this class that represent matching table rows."
-	| queryString rs size stream |
-	
-	size := conditionArray size.
-	queryString​ := 'select * from {1} where id={2}' format: {self tableName}.
-	
-	stream := WriteStream on: (String new: 200).
-	stream nextPutAll: 'select * from '.
-	stream nextPutAll: self tableName.
-	stream nextPutAll: ' where '.
-	conditionArray withIndexDo: [:condition :index |
-		stream nextPutAll: condition.
-		index < size ifTrue: [ stream nextPutAll: ' and ' ].
+	tableName ifNil: [
+		| words |
+		words := self name asString camelToWords.
+		words at: words size put: (words last asPlural).
+		tableName := '_' join: words :: asLowercase.
 	].
-	queryString := stream contents.
-	
-	rs := Conn execute: queryString.
-	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:08:27'!
-first
-	"Answer new instance of this class that represents the first record in the corresponding table."
-	| queryString row rs |
-	
-	queryString​ := 'select * from {1} limit 1' format: {self tableName}.
-	rs := Conn execute: queryString.
-	row := rs next. "ODBCResultSet is a subclass of Stream."
-	^ self newRow: row.! !
-
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 20:09:42'!
-last
-	"Answer new instance of this class that represents the first record in the corresponding table."
-	| queryString row rs |
-	
-	queryString​ := 'select * from {1} order by id desc limit 1' format: {self tableName}.
-	rs := Conn execute: queryString.
-	row := rs next. "ODBCResultSet is a subclass of Stream."
-	^ self newRow: row.! !
-
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/11/2024 20:24:23'!
-updateAll: assocArray
-	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
-	| queryString stream |
-	
-	stream := WriteStream on: (String new: 200).
-	stream nextPutAll: 'update '.
-	stream nextPutAll: self tableName.
-	stream nextPutAll: ' set '.
-	assocArray
-		do: [:assoc |
-			stream nextPutAll: assoc key.
-			stream nextPutAll: ' = '.
-			stream nextPutAll: (self toString: (assoc value)).
-		]
-		separatedBy: [
-			stream nextPutAll: ', '.
-		].
-	
-	queryString := stream contents.
-	queryString logAs: 'queryString'.
-	
-	^ Conn execute: queryString.	! !
+	^ tableName.
+! !
 
 !ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 20:03:56'!
 connection
@@ -342,20 +250,23 @@ establishConnection: dsnString
 	^ Conn.
 ! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 16:51:46'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/12/2024 20:40:44'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| column columns dict names queryString rs size stream values |
+	| cols column dict names queryString rs size stream values |
 	
 	dict := assocArray asDictionary.
 	
-	"Get all the columns except the id column."
-	columns := self columns reject: [:col | col name = #id].
+	"TODO: Raise error if any keys are not valid column names."
+	dict keys do: [:key | self validateColumn: key].
 	
-	size := columns size.
-	names := columns collect: [:col | col name].
-	values := columns collect: [:col |
+	"Get all the columns except the id column."
+	cols := self columns values reject: [:col | col name = #id].
+	
+	size := cols size.
+	names := cols collect: [:col | col name].
+	values := cols collect: [:col |
 		| type value |
 		value := dict at: col name.
 		value ifNil: [
@@ -367,7 +278,7 @@ create: assocArray
 				['VarChar'] -> [''].
 			} otherwise: [nil].
 		].
-		value isKindOf: String :: ifTrue: ['"', value, '"'] ifFalse: [value].
+		self sqlString: value.
 	].
 	
 	stream := WriteStream on: (String new: 200).
@@ -393,18 +304,132 @@ create: assocArray
 	^ rs next at: column asSymbol.
 	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 19:28:53'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/11/2024 19:57:47'!
+destroyAll
+	"Deletes all rows from the corresponding table."
+	
+	^ Conn execute: 'delete from ', tableName.
+! !
+
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/12/2024 18:54:23'!
+destroyBy: anAssociation
+	"Deletes all matching rows in the corresponding table."
+	| column queryString value |
+	
+	column := anAssociation key.
+	value := self sqlString: anAssociation value.
+	queryString​ := 'delete from {1} where {2}={3}'
+		format: {self tableName. column. value}.
+	^​ Conn execute: queryString.
+! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/11/2024 20:06:25'!
+all
+	"Answer a collection of instances of this class that represent all the rows in the corresponding table."
+	|rs|
+
+	rs := Conn execute: 'select * from ', self tableName.
+	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/9/2024 19:22:48'!
+find: idNumber
+	"Answer new instance of this class that represents the table row with a given id."
+	| queryString row rs |
+	
+	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
+	rs := Conn execute: queryString.
+	row := rs next. "ODBCResultSet is a subclass of Stream."
+	^ self newRow: row.! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/12/2024 18:54:23'!
+findBy: anAssociation
+	"Answer collection of new instances of this class that represents matching table rows."
+	| column queryString rs value |
+	
+	column := anAssociation key.
+	value := self sqlString: anAssociation value.
+	queryString​ := 'select * from {1} where {2}={3}'
+		format: {self tableName. column. value}.
+	rs := Conn execute: queryString.
+	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:15:55'!
+findWhere: conditionArray
+	"Answer new instances of this class that represent matching table rows."
+	| queryString rs size stream |
+	
+	size := conditionArray size.
+	queryString​ := 'select * from {1} where id={2}' format: {self tableName}.
+	
+	stream := WriteStream on: (String new: 200).
+	stream nextPutAll: 'select * from '.
+	stream nextPutAll: self tableName.
+	stream nextPutAll: ' where '.
+	conditionArray withIndexDo: [:condition :index |
+		stream nextPutAll: condition.
+		index < size ifTrue: [ stream nextPutAll: ' and ' ].
+	].
+	queryString := stream contents.
+	
+	rs := Conn execute: queryString.
+	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:08:27'!
+first
+	"Answer new instance of this class that represents the first record in the corresponding table."
+	| queryString row rs |
+	
+	queryString​ := 'select * from {1} limit 1' format: {self tableName}.
+	rs := Conn execute: queryString.
+	row := rs next. "ODBCResultSet is a subclass of Stream."
+	^ self newRow: row.! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:09:42'!
+last
+	"Answer new instance of this class that represents the first record in the corresponding table."
+	| queryString row rs |
+	
+	queryString​ := 'select * from {1} order by id desc limit 1' format: {self tableName}.
+	rs := Conn execute: queryString.
+	row := rs next. "ODBCResultSet is a subclass of Stream."
+	^ self newRow: row.! !
+
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/12/2024 18:54:23'!
+updateAll: assocArray
+	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
+	| queryString stream |
+	
+	stream := WriteStream on: (String new: 200).
+	stream nextPutAll: 'update '.
+	stream nextPutAll: self tableName.
+	stream nextPutAll: ' set '.
+	assocArray
+		do: [:assoc |
+			stream nextPutAll: assoc key.
+			stream nextPutAll: ' = '.
+			stream nextPutAll: (self sqlString: (assoc value)).
+		]
+		separatedBy: [
+			stream nextPutAll: ', '.
+		].
+	
+	queryString := stream contents.
+	queryString logAs: 'queryString'.
+	
+	^ Conn execute: queryString.	! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:42:06'!
 newRow
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| columns names queryString size stream values |
+	| cols names queryString size stream values |
 	
 	"Get all the columns except the id column."
-	columns := self columns reject: [:column | column name = #id].
+	cols := self columns values reject: [:column | column name = #id].
 	
-	size := columns size.
-	names := columns collect: [:column | column name].
-	values := columns collect: [:column |
+	size := cols size.
+	names := cols collect: [:column | column name].
+	values := cols collect: [:column |
 		| type |
 		type := column dataType.
 		type caseOf: {
@@ -450,31 +475,18 @@ quoteIfString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 16:23:03'!
-tableName
-	"Answer table name that corresponds to current class, computed lazily."
-
-	tableName ifNil: [
-		| words |
-		words := self name asString camelToWords.
-		words at: words size put: (words last asPlural).
-		tableName := '_' join: words :: asLowercase.
-	].
-
-	^ tableName.
-! !
-
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 16:22:36'!
-tableName: aString
-	tableName := aString
-! !
-
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 20:27:09'!
-toString: value
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 18:54:23'!
+sqlString: value
 	"Answer string representation of value and include quotes if already a string."
 	^ value isString
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:38:35'!
+validateColumn: aSymbol
+	self columns at: aSymbol ifAbsent: [
+		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
+	]! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
