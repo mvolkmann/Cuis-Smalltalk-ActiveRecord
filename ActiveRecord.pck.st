@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 12 November 2024 at 9:04:51 pm'!
+'From Cuis7.1 [latest update: #6814] on 13 November 2024 at 8:39:04 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 60!
+!provides: 'ActiveRecord' 1 61!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -114,7 +114,7 @@ changed: zeroOrOne
 	message := Message selector: #changed argument: zeroOrOne. 
 	^ self doesNotUnderstand: message! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:23:45'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/13/2024 08:37:35'!
 doesNotUnderstand: aMessage
 	"Handle requests to get or set an instance variable
 	and update the corresponding database row."
@@ -131,21 +131,21 @@ doesNotUnderstand: aMessage
 		ifTrue: [
 			"Simulate setting an instance variable."
 			| arg instVarName query tableName |
+
 			instVarName := keyword allButLast asSymbol.
-			"If the instance variable is not in the row Dictionary ..."
-			row at: instVarName ifAbsent: [
-				^super doesNotUnderstand: aMessage.
-			].
 			arg := aMessage arguments first.
+			self class validateColumn: instVarName value: arg.
 			row at: instVarName put: arg.
 			
 			"Update the database row. Later this will be done when a transaction is commited."
 			tableName := self class tableName.
-			"TODO: This assumes the new value is a string."
+			arg := self class sqlString: arg.
 			query := 'update {1} set {2}="{3}" where id={4}' format: {tableName. instVarName. arg. self id}.
 			Conn execute: query.
 		]
 		ifFalse: [
+			self class validateColumn: keyword.
+
 			"Simulate getting an instance variable."
 			^ row at: keyword asSymbol ifAbsent: nil.
 		].
@@ -494,14 +494,14 @@ validateColumn: aSymbol
 		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 21:04:36'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/13/2024 08:30:18'!
 validateColumn: aSymbol value: anObject
 	| column message template type valid |
 
 	column := self validateColumn: aSymbol.
 	type := column dataType.
 	
-	template := '{1} is not a valid value for table {2} column {3} type {4}'.
+	template := '{1} is invalid value for table {2} column {3} type {4}'.
 	message := template format: {anObject. self tableName. aSymbol. type}.
 
 	valid := type caseOf: {
