@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 12 November 2024 at 8:43:19 pm'!
+'From Cuis7.1 [latest update: #6814] on 12 November 2024 at 9:04:51 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 59!
+!provides: 'ActiveRecord' 1 60!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -250,7 +250,7 @@ establishConnection: dsnString
 	^ Conn.
 ! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/12/2024 20:40:44'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/12/2024 20:45:26'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -258,8 +258,11 @@ create: assocArray
 	
 	dict := assocArray asDictionary.
 	
-	"TODO: Raise error if any keys are not valid column names."
+	"Raise error if any keys are not valid column names."
 	dict keys do: [:key | self validateColumn: key].
+	
+	"Raise error if any values are not valid for their column."
+	dict associationsDo: [:assoc | self validateColumn: assoc key value: assoc value].
 	
 	"Get all the columns except the id column."
 	cols := self columns values reject: [:col | col name = #id].
@@ -482,11 +485,36 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:38:35'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:47:36'!
 validateColumn: aSymbol
-	self columns at: aSymbol ifAbsent: [
+	"Raises an error if aSymbol is not the name of a column in the correponding table.
+	Otherwise returns the ODBCColumn."
+
+	^ self columns at: aSymbol ifAbsent: [
 		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 21:04:36'!
+validateColumn: aSymbol value: anObject
+	| column message template type valid |
+
+	column := self validateColumn: aSymbol.
+	type := column dataType.
+	
+	template := '{1} is not a valid value for table {2} column {3} type {4}'.
+	message := template format: {anObject. self tableName. aSymbol. type}.
+
+	valid := type caseOf: {
+		[#Double] -> [anObject isFloat or: [anObject isInteger]].
+		[#Integer] -> [anObject isInteger].
+		[#VarChar] -> [anObject isString]
+	} otherwise: [
+		template := 'table {1} column {2} has unsupported type {3}'.
+		Error signal: (template format: {self tableName. aSymbol. type}).
+	].
+
+	valid ifFalse: [ Error signal: message ].
+! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
