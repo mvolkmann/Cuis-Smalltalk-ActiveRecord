@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 13 November 2024 at 8:49:27 am'!
+'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 11:12:18 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 62!
+!provides: 'ActiveRecord' 1 67!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -63,6 +63,16 @@ ApplicationRecord subclass: #Todo
 	category: 'ActiveRecord'!
 !classDefinition: 'Todo class' category: #ActiveRecord!
 Todo class
+	instanceVariableNames: ''!
+
+!classDefinition: #TodoTests category: #ActiveRecord!
+TestCase subclass: #TodoTests
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'TodoTests class' category: #ActiveRecord!
+TodoTests class
 	instanceVariableNames: ''!
 
 
@@ -157,10 +167,12 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/16/2024 11:11:40'!
 update: assocArray
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
+	
+	self class validateAssocArray: assocArray.
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
@@ -250,11 +262,13 @@ establishConnection: dsnString
 	^ Conn.
 ! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/12/2024 20:45:26'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/16/2024 10:54:58'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
 	| cols column dict names queryString rs size stream values |
+	
+	self validateAssocArray: assocArray.
 	
 	dict := assocArray asDictionary.
 	
@@ -270,17 +284,9 @@ create: assocArray
 	size := cols size.
 	names := cols collect: [:col | col name].
 	values := cols collect: [:col |
-		| type value |
-		value := dict at: col name.
-		value ifNil: [
-			"Use a default value of the correct type."
-			type := col dataType.
-			value := type caseOf: {
-				['Double'] -> [0].
-				['Integer'] -> [0].
-				['VarChar'] -> [''].
-			} otherwise: [nil].
-		].
+		| value |
+		value := dict at: col name ifAbsent: nil.
+		value ifNil: [ value := self sqlTypeDefault: col dataType ].
 		self sqlString: value.
 	].
 	
@@ -307,17 +313,25 @@ create: assocArray
 	^ rs next at: column asSymbol.
 	! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/11/2024 19:57:47'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/16/2024 10:35:44'!
 destroyAll
-	"Deletes all rows from the corresponding table."
+	"Delete all rows from corresponding table and answer number of rows deleted."
+	| rs |
 	
-	^ Conn execute: 'delete from ', tableName.
+	[ rs := Conn execute: 'delete from ', tableName ] on: UnhandledError do: [:ex |
+		"This happens when there are no rows in the table."
+		"We can ignore it."
+	].
+
+	^ rs ifNil: 0 ifNotNil: [rs asTable size].
 ! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/16/2024 11:07:03'!
 destroyBy: anAssociation
 	"Deletes all matching rows in the corresponding table."
 	| column queryString value |
+	
+	self validateAssoc: anAssociation.
 	
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -334,7 +348,7 @@ all
 	rs := Conn execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/9/2024 19:22:48'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:04:15'!
 find: idNumber
 	"Answer new instance of this class that represents the table row with a given id."
 	| queryString row rs |
@@ -342,13 +356,15 @@ find: idNumber
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
 	rs := Conn execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
-	^ self newRow: row.! !
+	^ row ifNil: nil ifNotNil: [self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:07:16'!
 findBy: anAssociation
 	"Answer collection of new instances of this class that represents matching table rows."
 	| column queryString rs value |
-	
+
+	self validateAssoc: anAssociation.
+
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
 	queryString​ := 'select * from {1} where {2}={3}'
@@ -397,11 +413,29 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:06:27'!
+validateAssoc: anObject
+	"Raise error if anObject is not an Association object."
+
+	anObject isKindOf: Association ::
+		ifFalse: [Error signal: 'requires Association object'].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 10:54:14'!
+validateAssocArray: anObject
+	"Raise error if anObject is not an Array of Association objects."
+
+	anObject isArray ifFalse: [Error signal: 'requires Array'].
+
+	anObject allSatisfy: [:element | element isKindOf: Association] ::
+		ifFalse: [Error signal: 'requires Array of Association objects'].! !
+
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/16/2024 10:55:36'!
 updateAll: assocArray
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
-	
+
+	self validateAssocArray: assocArray.
+
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
 	stream nextPutAll: self tableName.
@@ -515,6 +549,61 @@ validateColumn: aSymbol value: anObject
 		Error signal: (template format: {anObject. self tableName. aSymbol. type}).
 	].
 ! !
+
+!ARBase class methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 10:47:52'!
+sqlTypeDefault: sqlTypeString
+	^​ sqlTypeString caseOf: {
+		['Double'] -> [0].
+		['Integer'] -> [0].
+		['VarChar'] -> [''].
+	} otherwise: [nil].! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 10:15:14'!
+setUp
+
+	ARBase establishConnection: 'TodosDSN'.
+	! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 11:12:12'!
+testDatabaseOperations
+	| descriptions id todo todos |
+	
+	self assert: (Todo tableName) equals: 'todos'.
+	
+	"Delete all rows in the todos table."
+	Todo destroyAll.
+	todos := Todo all.
+	self assert: todos size equals: 0.
+	
+	"Create three new rows."
+	descriptions := #('cut grass' 'buy milk' 'study Smalltalk').
+	descriptions do: [:description | Todo create: {#description -> description}].
+	todos := Todo all.
+	self assert: todos size equals: 3.
+	
+	"Get the description column value from the first row."
+	todo := Todo first.
+	self assert: todo description equals: descriptions first.
+
+	"Delete the row for 'study Smalltalk' by its id."
+	todo := Todo last.
+	self assert: todo description equals: descriptions last.
+	id := todo id.
+	todo destroy.
+	self assert: (Todo find: id) = nil.
+	
+	"Delete the row for 'cut grass' by its description."
+	Todo destroyBy: #description->descriptions first.
+	todos := Todo all.
+	self assert: todos size equals: 1.
+	
+	"Update the completed column for the 'buy milk' row."	
+	todos := Todo findBy: #description -> 'buy milk'.
+	self assert: todos size equals: 1.
+	todo := todos first.
+	todo update: {#completed -> 1}.
+	todo := Todo find: todo id.
+	self assert: todo completed equals: 1.! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
