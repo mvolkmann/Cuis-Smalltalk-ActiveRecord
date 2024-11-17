@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 11:12:18 am'!
+'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 7:12:57 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 67!
+!provides: 'ActiveRecord' 1 70!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -67,7 +67,7 @@ Todo class
 
 !classDefinition: #TodoTests category: #ActiveRecord!
 TestCase subclass: #TodoTests
-	instanceVariableNames: ''
+	instanceVariableNames: 'descriptions'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
@@ -558,17 +558,11 @@ sqlTypeDefault: sqlTypeString
 		['VarChar'] -> [''].
 	} otherwise: [nil].! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 10:15:14'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:07:17'!
 setUp
+	| todos |
 
-	ARBase establishConnection: 'TodosDSN'.
-	! !
-
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 11:12:12'!
-testDatabaseOperations
-	| descriptions id todo todos |
-	
-	self assert: (Todo tableName) equals: 'todos'.
+	Todo establishConnection: 'TodosDSN'.
 	
 	"Delete all rows in the todos table."
 	Todo destroyAll.
@@ -580,24 +574,49 @@ testDatabaseOperations
 	descriptions do: [:description | Todo create: {#description -> description}].
 	todos := Todo all.
 	self assert: todos size equals: 3.
-	
-	"Get the description column value from the first row."
-	todo := Todo first.
-	self assert: todo description equals: descriptions first.
 
-	"Delete the row for 'study Smalltalk' by its id."
+	! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
+tearDown
+
+	Todo disconnect.
+	! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:09:15'!
+testColumnGetter
+	| todo |
+		
+	todo := Todo first.
+	self assert: todo description equals: descriptions first.! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:12:07'!
+testDeleteRowByColumValue
+	| todos |
+	
+	Todo destroyBy: #description->descriptions first.
+	todos := Todo all.
+	self assert: todos size equals: 2.! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:10:32'!
+testDeleteRowForInstance
+	| id todo |
+
 	todo := Todo last.
 	self assert: todo description equals: descriptions last.
 	id := todo id.
 	todo destroy.
-	self assert: (Todo find: id) = nil.
+	self assert: (Todo find: id) = nil.! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:08:11'!
+testTableName
 	
-	"Delete the row for 'cut grass' by its description."
-	Todo destroyBy: #description->descriptions first.
-	todos := Todo all.
-	self assert: todos size equals: 1.
+	self assert: (Todo tableName) equals: 'todos'! !
+
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:12:46'!
+testUpdateColumn
+	| todo todos |
 	
-	"Update the completed column for the 'buy milk' row."	
 	todos := Todo findBy: #description -> 'buy milk'.
 	self assert: todos size equals: 1.
 	todo := todos first.
