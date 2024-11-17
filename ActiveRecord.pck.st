@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 7:12:57 pm'!
+'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 7:14:34 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 70!
+!provides: 'ActiveRecord' 1 71!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -413,22 +413,6 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:06:27'!
-validateAssoc: anObject
-	"Raise error if anObject is not an Association object."
-
-	anObject isKindOf: Association ::
-		ifFalse: [Error signal: 'requires Association object'].! !
-
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 10:54:14'!
-validateAssocArray: anObject
-	"Raise error if anObject is not an Array of Association objects."
-
-	anObject isArray ifFalse: [Error signal: 'requires Array'].
-
-	anObject allSatisfy: [:element | element isKindOf: Association] ::
-		ifFalse: [Error signal: 'requires Array of Association objects'].! !
-
 !ARBase class methodsFor: 'updating' stamp: 'RMV 11/16/2024 10:55:36'!
 updateAll: assocArray
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
@@ -627,6 +611,22 @@ testUpdateColumn
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
     ('{1} = {2}' format: {aString. self}) print! !
+
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/16/2024 19:14:01'!
+validateAssoc: anObject
+	"Raise error if anObject is not an Association object."
+
+	anObject isKindOf: Association ::
+		ifFalse: [Error signal: 'requires Association object'].! !
+
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/16/2024 19:14:08'!
+validateAssocArray: anObject
+	"Raise error if anObject is not an Array of Association objects."
+
+	anObject isArray ifFalse: [Error signal: 'requires Array'].
+
+	anObject allSatisfy: [:element | element isKindOf: Association] ::
+		ifFalse: [Error signal: 'requires Array of Association objects'].! !
 
 !String methodsFor: '*ActiveRecord' stamp: 'RMV 11/10/2024 14:20:11'!
 camelToWords
