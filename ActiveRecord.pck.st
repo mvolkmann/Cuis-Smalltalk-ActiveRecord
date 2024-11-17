@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 16 November 2024 at 7:14:34 pm'!
+'From Cuis7.1 [latest update: #6814] on 17 November 2024 at 9:08:37 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 71!
+!provides: 'ActiveRecord' 1 78!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -13,7 +13,7 @@ Object subclass: #ARBase
 	category: 'ActiveRecord'!
 !classDefinition: 'ARBase class' category: #ActiveRecord!
 ARBase class
-	instanceVariableNames: 'columns tableName'!
+	instanceVariableNames: 'dbType columns tableName'!
 
 !classDefinition: #ApplicationRecord category: #ActiveRecord!
 ARBase subclass: #ApplicationRecord
@@ -90,7 +90,7 @@ destroy
 	queryString​ := 'delete from {1} where id={2}' format: {self class tableName. self id}.
 	^​ Conn execute: queryString.! !
 
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase methodsFor: 'deleting' stamp: 'RMV 11/17/2024 08:16:45'!
 inspect
 	"Answer string description of corresponding database record."
 	| stream |
@@ -101,9 +101,10 @@ inspect
 	stream nextPut: Character space.
 	
 	self class columns
-		do: [:column |
+		associationsDo: [:assoc |
 			| name value |
-			name := column name.
+			name := assoc key.
+			value := assoc value.
 			value := self perform: name.
 			stream nextPutAll: name.
 			stream nextPutAll: ': '.
@@ -195,21 +196,34 @@ update: assocArray
 	
 	^ Conn execute: queryString.	! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/12/2024 18:55:43'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 09:06:43'!
 columns
-	"Answer a Dictionary where keys are column names and values are ODBCColumn objects
-	describing each column in the corresponding table, computed lazily."
-	
+	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
+
 	columns ifNil: [
 		| queryString rs |
-	
-		"This query returns an empty ODBCResultSet for the corresponding table
-		which can be used to get information about its columns."
-		queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
 
-		rs := Conn execute: queryString.
-		"columns := rs columns."
-		columns := rs columns collect: [:column | column name -> column] :: asDictionary.
+		columns := Dictionary new.
+
+		dbType caseOf: {
+			[#Postgres] -> [
+				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
+				rs := Conn execute: queryString.
+				rs asTable do: [:row |
+					columns at: (row at: #column_name) put: (row at: #data_type)
+				].
+			].
+			[#SQLite]->[
+				"This query returns an empty ODBCResultSet for the corresponding table
+				which can be used to get information about its columns."
+				queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
+
+				rs := Conn execute: queryString.
+				rs columns do: [:column |
+					columns at: column name put: column dataType
+				].
+			]
+		} otherwise: [self unsupportedDBType].
 	].
 
 	^ columns.
@@ -243,6 +257,10 @@ tableName
 connection
 	^ Conn! !
 
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 08:47:56'!
+dbType
+	^ dbType! !
+
 !ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:48:42'!
 disconnect
 	"Close the database connect if there is one."
@@ -252,41 +270,56 @@ disconnect
 		Conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 20:07:39'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 07:40:01'!
 establishConnection: dsnString	
+	"TODO: Delete this and always use establishConnect:dbType: ?"
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
 
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].
+	Conn sqlGetInfoString: 1 :: logAs: 'establishConnect infoString'.
 	^ Conn.
 ! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/16/2024 10:54:58'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 07:45:26'!
+establishConnection: dsnString	 dbType: dbTypeSymbol
+	"Open a connection to the database for a given DSN if not already open."
+	"TODO: Add support for getting username and password from '.odbc.ini'
+	by capturing output of 'odbcinst -q -s -n dsnString'?"
+
+	dbType := dbTypeSymbol.
+	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].
+	Conn sqlGetInfoString: 1 :: logAs: 'establishConnect infoString'.
+	^ Conn.
+! !
+
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 05:09:58'!
+reset
+	Conn := nil.
+	columns := nil.! !
+
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/17/2024 09:07:17'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| cols column dict names queryString rs size stream values |
+	| cols column dict id names queryString rs stream values |
 	
 	self validateAssocArray: assocArray.
 	
 	dict := assocArray asDictionary.
 	
-	"Raise error if any keys are not valid column names."
-	dict keys do: [:key | self validateColumn: key].
+	"Raise error if any keys are not valid column names
+	or any values are not valid for their column type."
+	dict associationsDo: [:assoc |
+		self validateColumn: assoc key value: assoc value
+	].
 	
-	"Raise error if any values are not valid for their column."
-	dict associationsDo: [:assoc | self validateColumn: assoc key value: assoc value].
-	
-	"Get all the columns except the id column."
-	cols := self columns values reject: [:col | col name = #id].
-	
-	size := cols size.
-	names := cols collect: [:col | col name].
-	values := cols collect: [:col |
+	cols := self columns.
+	names := cols keys reject: [:columnName | columnName = 'id'].
+	values := names collect: [:columnName |
 		| value |
-		value := dict at: col name ifAbsent: nil.
-		value ifNil: [ value := self sqlTypeDefault: col dataType ].
+		value := dict at: columnName ifAbsent: [self sqlTypeDefault: (cols at: columnName)].
 		self sqlString: value.
 	].
 	
@@ -294,23 +327,31 @@ create: assocArray
 	stream nextPutAll: 'insert into '.
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' ('.
-	names withIndexDo: [:colName :index |
-		stream nextPutAll: colName.
-		index < size ifTrue: [ stream nextPutAll: ', ' ].
-	].
+	names
+		do: [:colName | stream nextPutAll: colName]
+		separatedBy: [stream nextPutAll: ', '].
 	stream nextPutAll: ') values ('.
-	values withIndexDo: [:value :index |
-		stream nextPutAll: value asString.
-		index < size ifTrue: [ stream nextPutAll: ', ' ].
-	].
+	values
+		do: [:value | stream nextPutAll: value asString]
+		separatedBy: [stream nextPutAll: ', '].
 	stream nextPutAll: ')'.
 	queryString := stream contents.
 	queryString logAs: 'queryString'.
 	
-	Conn execute: queryString.
-	column := 'last_insert_rowid()'.
-	rs := Conn execute: 'select ', column. "TODO: This is specific to SQLite!!"
-	^ rs next at: column asSymbol.
+	dbType caseOf: {
+		[#Postgres] -> [
+			rs := Conn execute: queryString, ' returning id'.
+			id := rs next at: #id.
+		].
+		[#SQLite] -> [
+			rs := Conn execute: queryString.
+			column := 'last_insert_rowid()'.
+			rs := Conn execute: 'select ', column. "TODO: This is specific to SQLite!!"
+			id := rs next at: column asSymbol.
+		]
+	} otherwise: [self unsupportedDBType].
+	
+	^ id.
 	! !
 
 !ARBase class methodsFor: 'deleting' stamp: 'RMV 11/16/2024 10:35:44'!
@@ -347,6 +388,13 @@ all
 
 	rs := Conn execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:07:26'!
+falseValue
+	^ dbType caseOf: {
+		[#Postgres] -> ['0']. "tests fail with 'f'"
+		[#SQLite] -> [0]
+	} otherwise: [self unsupportedDBType]! !
 
 !ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:04:15'!
 find: idNumber
@@ -413,6 +461,17 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:07:34'!
+trueValue
+	^ dbType caseOf: {
+		[#Postgres] -> ['1']. "tests fail with 't'"
+		[#SQLite] -> [1]
+	} otherwise: [self unsupportedDBType]! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:05:40'!
+unsupportedDBType
+	Error signal: 'unsupported database type ', dbType! !
+
 !ARBase class methodsFor: 'updating' stamp: 'RMV 11/16/2024 10:55:36'!
 updateAll: assocArray
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
@@ -439,40 +498,29 @@ updateAll: assocArray
 	
 	^ Conn execute: queryString.	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:42:06'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:14:37'!
 newRow
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| cols names queryString size stream values |
+	| names queryString stream values |
 	
-	"Get all the columns except the id column."
-	cols := self columns values reject: [:column | column name = #id].
+	"Get all the column names except the id column."
+	names := columns keys reject: [:column | column name = #id].	
 	
-	size := cols size.
-	names := cols collect: [:column | column name].
-	values := cols collect: [:column |
-		| type |
-		type := column dataType.
-		type caseOf: {
-			['Double'] -> [0].
-			['Integer'] -> [0].
-			['VarChar'] -> ['""'].
-		} otherwise: [nil].
-	].
+	"Get all the default column values."
+	values := columns values collect: [:dataType | self sqlTypeDefault: dataType].
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'insert into '.
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' ('.
-	names withIndexDo: [:colName :index |
-		stream nextPutAll: colName.
-		index < size ifTrue: [ stream nextPutAll: ', ' ].
-	].
+	names
+		do: [:column | stream nextPutAll: column]
+		separatedBy: [stream nextPutAll: ', ' ].
 	stream nextPutAll: ') values ('.
-	values withIndexDo: [:value :index |
-		stream nextPutAll: value asString.
-		index < size ifTrue: [ stream nextPutAll: ', ' ].
-	].
+	values
+		do: [:value | stream nextPutAll: value asString]
+		separatedBy: [stream nextPutAll: ', ' ].
 	stream nextPutAll: ')'.
 	queryString := stream contents.
 	queryString logAs: 'queryString'.
@@ -503,6 +551,15 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:50:51'!
+sqlTypeDefault: sqlTypeString
+	^​ sqlTypeString caseOf: {
+		['boolean'] -> ['f'].
+		['Double'] -> [0].
+		['Integer'] -> [0].
+		['VarChar'] -> [''].
+	} otherwise: [nil].! !
+
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:47:36'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
@@ -512,16 +569,19 @@ validateColumn: aSymbol
 		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/13/2024 08:47:36'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:50:29'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
 
 	column := self validateColumn: aSymbol.
-	type := column dataType.
+	type := columns at: aSymbol.
 	
 	valid := type caseOf: {
+		[#boolean] -> [anObject isKindOf: Boolean].
 		[#Double] -> [anObject isFloat or: [anObject isInteger]].
 		[#Integer] -> [anObject isInteger].
+		[#LongVarChar] -> [anObject isString].
+		[#text] -> [anObject isString].
 		[#VarChar] -> [anObject isString]
 	} otherwise: [
 		template := 'table {1} column {2} has unsupported type {3}'.
@@ -534,19 +594,17 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!ARBase class methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 10:47:52'!
-sqlTypeDefault: sqlTypeString
-	^​ sqlTypeString caseOf: {
-		['Double'] -> [0].
-		['Integer'] -> [0].
-		['VarChar'] -> [''].
-	} otherwise: [nil].! !
-
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:07:17'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:59:38'!
 setUp
 	| todos |
+	
+	"Clear the cached connection. This is important when switching to a different database."
+	Todo reset.
 
-	Todo establishConnection: 'TodosDSN'.
+	"For testing SQLite ..."
+	Todo establishConnection: 'TodosDSN' dbType: 'SQLite'.
+	"For testing PostgreSQL..."
+	"Todo establishConnection: 'Todos2DSN' dbType: 'Postgres'."
 	
 	"Delete all rows in the todos table."
 	Todo destroyAll.
@@ -567,14 +625,14 @@ tearDown
 	Todo disconnect.
 	! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:09:15'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:29'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:12:07'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:37'!
 testDeleteRowByColumValue
 	| todos |
 	
@@ -582,7 +640,7 @@ testDeleteRowByColumValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:10:32'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:48'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -592,21 +650,24 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:08:11'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
 	
 	self assert: (Todo tableName) equals: 'todos'! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:12:46'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:56:33'!
 testUpdateColumn
-	| todo todos |
+	| completed todo todos |
 	
 	todos := Todo findBy: #description -> 'buy milk'.
 	self assert: todos size equals: 1.
 	todo := todos first.
-	todo update: {#completed -> 1}.
+	
+	completed := Todo trueValue.
+	todo update: {#completed -> completed}.
+
 	todo := Todo find: todo id.
-	self assert: todo completed equals: 1.! !
+	self assert: todo completed equals: completed.! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
