@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6814] on 17 November 2024 at 9:08:37 am'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 5:42:09 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 78!
+!provides: 'ActiveRecord' 1 80!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -196,16 +196,23 @@ update: assocArray
 	
 	^ Conn execute: queryString.	! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 09:06:43'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 19:59:57'!
 columns
 	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
 
 	columns ifNil: [
 		| queryString rs |
-
+		
 		columns := Dictionary new.
 
 		dbType caseOf: {
+			[#MySQL] -> [
+				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
+				rs := Conn execute: queryString.
+				rs asTable do: [:row |
+					columns at: (row at: #COLUMN_NAME) put: (row at: #DATA_TYPE)
+				].
+			].
 			[#Postgres] -> [
 				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
 				rs := Conn execute: queryString.
@@ -299,7 +306,7 @@ reset
 	Conn := nil.
 	columns := nil.! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/17/2024 09:07:17'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/17/2024 19:44:42'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -339,6 +346,12 @@ create: assocArray
 	queryString logAs: 'queryString'.
 	
 	dbType caseOf: {
+		[#MySQL] -> [
+			rs := Conn execute: queryString.
+			column := 'last_insert_id()'.
+			rs := Conn execute: 'select ', column.
+			id := rs next at: column asSymbol.
+		].
 		[#Postgres] -> [
 			rs := Conn execute: queryString, ' returning id'.
 			id := rs next at: #id.
@@ -346,7 +359,7 @@ create: assocArray
 		[#SQLite] -> [
 			rs := Conn execute: queryString.
 			column := 'last_insert_rowid()'.
-			rs := Conn execute: 'select ', column. "TODO: This is specific to SQLite!!"
+			rs := Conn execute: 'select ', column.
 			id := rs next at: column asSymbol.
 		]
 	} otherwise: [self unsupportedDBType].
@@ -389,9 +402,10 @@ all
 	rs := Conn execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:07:26'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 05:41:34'!
 falseValue
 	^ dbType caseOf: {
+		[#MySQL] -> [0].
 		[#Postgres] -> ['0']. "tests fail with 'f'"
 		[#SQLite] -> [0]
 	} otherwise: [self unsupportedDBType]! !
@@ -461,9 +475,10 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:07:34'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 05:41:22'!
 trueValue
 	^ dbType caseOf: {
+		[#MySQL] -> [1].
 		[#Postgres] -> ['1']. "tests fail with 't'"
 		[#SQLite] -> [1]
 	} otherwise: [self unsupportedDBType]! !
@@ -551,12 +566,14 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:50:51'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 20:00:26'!
 sqlTypeDefault: sqlTypeString
+	sqlTypeString logAs: 'sqlTypeDefault: sqlTypeString'.
 	^​ sqlTypeString caseOf: {
 		['boolean'] -> ['f'].
 		['Double'] -> [0].
 		['Integer'] -> [0].
+		['tinyint'] -> [0].
 		['VarChar'] -> [''].
 	} otherwise: [nil].! !
 
@@ -594,17 +611,17 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:59:38'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:40:25'!
 setUp
-	| todos |
+	| dbType dsn todos |
 	
 	"Clear the cached connection. This is important when switching to a different database."
 	Todo reset.
 
-	"For testing SQLite ..."
-	Todo establishConnection: 'TodosDSN' dbType: 'SQLite'.
-	"For testing PostgreSQL..."
-	"Todo establishConnection: 'Todos2DSN' dbType: 'Postgres'."
+	"dsn := 'Todos1DSN'. dbType := 'SQLite'."
+	"dsn := 'Todos2DSN'. dbType := 'Postgres'."
+	dsn := 'Todos3DSN'. dbType := 'MySQL'.
+	Todo establishConnection: dsn dbType: dbType.
 	
 	"Delete all rows in the todos table."
 	Todo destroyAll.
@@ -625,14 +642,14 @@ tearDown
 	Todo disconnect.
 	! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:29'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:37'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
 testDeleteRowByColumValue
 	| todos |
 	
@@ -640,7 +657,7 @@ testDeleteRowByColumValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:48'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -655,7 +672,7 @@ testTableName
 	
 	self assert: (Todo tableName) equals: 'todos'! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:56:33'!
+!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
 testUpdateColumn
 	| completed todo todos |
 	
