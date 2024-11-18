@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 5:42:09 am'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 5:45:22 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 80!
+!provides: 'ActiveRecord' 1 81!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -168,7 +168,7 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/16/2024 11:11:40'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/18/2024 05:45:08'!
 update: assocArray
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
@@ -191,9 +191,8 @@ update: assocArray
 	
 	stream nextPutAll: ' where id = '.
 	stream nextPutAll: self id asString.
-	queryString := stream contents.
-	queryString logAs: 'queryString'.
 	
+	queryString := stream contents.
 	^ Conn execute: queryString.	! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 19:59:57'!
@@ -306,7 +305,7 @@ reset
 	Conn := nil.
 	columns := nil.! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/17/2024 19:44:42'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/18/2024 05:43:41'!
 create: assocArray
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -343,7 +342,6 @@ create: assocArray
 		separatedBy: [stream nextPutAll: ', '].
 	stream nextPutAll: ')'.
 	queryString := stream contents.
-	queryString logAs: 'queryString'.
 	
 	dbType caseOf: {
 		[#MySQL] -> [
@@ -487,7 +485,7 @@ trueValue
 unsupportedDBType
 	Error signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/16/2024 10:55:36'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/18/2024 05:44:28'!
 updateAll: assocArray
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
@@ -508,9 +506,7 @@ updateAll: assocArray
 			stream nextPutAll: ', '.
 		].
 	
-	queryString := stream contents.
-	queryString logAs: 'queryString'.
-	
+	queryString := stream contents.	
 	^ Conn execute: queryString.	! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:14:37'!
@@ -566,9 +562,8 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 20:00:26'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:44:00'!
 sqlTypeDefault: sqlTypeString
-	sqlTypeString logAs: 'sqlTypeDefault: sqlTypeString'.
 	^​ sqlTypeString caseOf: {
 		['boolean'] -> ['f'].
 		['Double'] -> [0].
