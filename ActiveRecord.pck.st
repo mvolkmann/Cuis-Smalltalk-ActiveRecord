@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 7:16:58 pm'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 7:19:15 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 86!
+!provides: 'ActiveRecord' 1 87!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -673,29 +673,9 @@ testColumnGetter
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:16:45'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:19:09'!
 testColumns
-	| cols |
-	
-	cols := Todo columns.
-
-	dbType caseOf: {
-		[#MySQL] -> [
-			self assert: (cols at: 'id') equals: 'int'.
-			self assert: (cols at: 'description') equals: 'text'.
-			self assert: (cols at: 'completed') equals: 'tinyint'.
-		].
-		[#Postgres] -> [
-			self assert: (cols at: 'id') equals: 'integer'.
-			self assert: (cols at: 'description') equals: 'text'.
-			self assert: (cols at: 'completed') equals: 'boolean'.
-		].
-		[#SQLite]->[
-			self assert: (cols at: #id) equals: #Integer.
-			self assert: (cols at: #description) equals: #VarChar.
-			self assert: (cols at: #completed) equals: #Double.
-		]
-	} otherwise: [ApplicationRecord unsupportedDBType].! !
+	self subclassResponsibility! !
 
 !DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
 testDeleteRowByColumValue
@@ -740,17 +720,44 @@ setUp
 	dbType := 'MySQL'.
 	super setUp.! !
 
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:17:54'!
+testColumns
+	| cols |
+	
+	cols := Todo columns.
+	self assert: (cols at: 'id') equals: 'int'.
+	self assert: (cols at: 'description') equals: 'text'.
+	self assert: (cols at: 'completed') equals: 'tinyint'.! !
+
 !PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:29'!
 setUp
 	dsn := 'PostgresTodosDSN'.
 	dbType := 'Postgres'.
 	super setUp.! !
 
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:18:21'!
+testColumns
+	| cols |
+	
+	cols := Todo columns.
+	self assert: (cols at: 'id') equals: 'integer'.
+	self assert: (cols at: 'description') equals: 'text'.
+	self assert: (cols at: 'completed') equals: 'boolean'.! !
+
 !SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:36'!
 setUp
 	dsn := 'SQLiteTodosDSN'.
 	dbType := 'SQLite'.
 	super setUp.! !
+
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:18:51'!
+testColumns
+	| cols |
+	
+	cols := Todo columns.
+	self assert: (cols at: #id) equals: #Integer.
+	self assert: (cols at: #description) equals: #VarChar.
+	self assert: (cols at: #completed) equals: #Double.! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
