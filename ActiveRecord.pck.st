@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 6:22:03 pm'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 6:25:31 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 83!
+!provides: 'ActiveRecord' 1 85!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -65,18 +65,18 @@ ApplicationRecord subclass: #Todo
 Todo class
 	instanceVariableNames: ''!
 
-!classDefinition: #DatabaseTests category: #ActiveRecord!
-TestCase subclass: #DatabaseTests
+!classDefinition: #DatabaseAbstractTests category: #ActiveRecord!
+TestCase subclass: #DatabaseAbstractTests
 	instanceVariableNames: 'descriptions dsn dbType'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
-!classDefinition: 'DatabaseTests class' category: #ActiveRecord!
-DatabaseTests class
+!classDefinition: 'DatabaseAbstractTests class' category: #ActiveRecord!
+DatabaseAbstractTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #MySQLTests category: #ActiveRecord!
-DatabaseTests subclass: #MySQLTests
+DatabaseAbstractTests subclass: #MySQLTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -86,7 +86,7 @@ MySQLTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #PostgresTests category: #ActiveRecord!
-DatabaseTests subclass: #PostgresTests
+DatabaseAbstractTests subclass: #PostgresTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -96,7 +96,7 @@ PostgresTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #SQLiteTests category: #ActiveRecord!
-DatabaseTests subclass: #SQLiteTests
+DatabaseAbstractTests subclass: #SQLiteTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -642,7 +642,7 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:17:13'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:17:13'!
 setUp	
 
 	"Clear the cached connection. This is important when switching to a different database."
@@ -660,20 +660,20 @@ setUp
 	descriptions do: [:description | Todo create: {#description -> description}].
 	self assert: Todo count equals: 3.! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
 tearDown
 
 	Todo disconnect.
 	! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
 testDeleteRowByColumValue
 	| todos |
 	
@@ -681,7 +681,7 @@ testDeleteRowByColumValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -691,12 +691,12 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
 	
 	self assert: (Todo tableName) equals: 'todos'! !
 
-!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
 testUpdateColumn
 	| completed todo todos |
 	
