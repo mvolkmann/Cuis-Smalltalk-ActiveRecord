@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 5:45:22 am'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 6:22:03 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 81!
+!provides: 'ActiveRecord' 1 83!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -65,14 +65,44 @@ ApplicationRecord subclass: #Todo
 Todo class
 	instanceVariableNames: ''!
 
-!classDefinition: #TodoTests category: #ActiveRecord!
-TestCase subclass: #TodoTests
-	instanceVariableNames: 'descriptions'
+!classDefinition: #DatabaseTests category: #ActiveRecord!
+TestCase subclass: #DatabaseTests
+	instanceVariableNames: 'descriptions dsn dbType'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
-!classDefinition: 'TodoTests class' category: #ActiveRecord!
-TodoTests class
+!classDefinition: 'DatabaseTests class' category: #ActiveRecord!
+DatabaseTests class
+	instanceVariableNames: ''!
+
+!classDefinition: #MySQLTests category: #ActiveRecord!
+DatabaseTests subclass: #MySQLTests
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'MySQLTests class' category: #ActiveRecord!
+MySQLTests class
+	instanceVariableNames: ''!
+
+!classDefinition: #PostgresTests category: #ActiveRecord!
+DatabaseTests subclass: #PostgresTests
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'PostgresTests class' category: #ActiveRecord!
+PostgresTests class
+	instanceVariableNames: ''!
+
+!classDefinition: #SQLiteTests category: #ActiveRecord!
+DatabaseTests subclass: #SQLiteTests
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'SQLiteTests class' category: #ActiveRecord!
+SQLiteTests class
 	instanceVariableNames: ''!
 
 
@@ -235,15 +265,21 @@ columns
 	^ columns.
 ! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/9/2024 19:22:16'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/18/2024 18:21:32'!
 count
 	"Answer number of rows in corresponding table."
-	| queryString rs column |
+	| queryString row rs column |
 	
 	column := 'count(*)'.
 	queryString​ := 'select {1} from {2}' format: {column. self tableName}.
 	rs := Conn execute: queryString.
-	^ rs next at: (column asSymbol).! !
+	row := rs next.
+	
+	dbType caseOf: {
+		[#MySQL] -> [^ row at: (column asSymbol)].
+		[#Postgres] -> [^ row at: #count].
+		[#SQLite] -> [^ row at: (column asSymbol)].
+	} otherwise: [self unsupportedDBType].! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 16:23:03'!
 tableName
@@ -606,45 +642,38 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:40:25'!
-setUp
-	| dbType dsn todos |
-	
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:17:13'!
+setUp	
+
 	"Clear the cached connection. This is important when switching to a different database."
 	Todo reset.
+	dsn logAs: dsn.
 
-	"dsn := 'Todos1DSN'. dbType := 'SQLite'."
-	"dsn := 'Todos2DSN'. dbType := 'Postgres'."
-	dsn := 'Todos3DSN'. dbType := 'MySQL'.
 	Todo establishConnection: dsn dbType: dbType.
 	
 	"Delete all rows in the todos table."
 	Todo destroyAll.
-	todos := Todo all.
-	self assert: todos size equals: 0.
+	self assert: Todo count equals: 0.
 	
 	"Create three new rows."
 	descriptions := #('cut grass' 'buy milk' 'study Smalltalk').
 	descriptions do: [:description | Todo create: {#description -> description}].
-	todos := Todo all.
-	self assert: todos size equals: 3.
+	self assert: Todo count equals: 3.! !
 
-	! !
-
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
 tearDown
 
 	Todo disconnect.
 	! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
 testDeleteRowByColumValue
 	| todos |
 	
@@ -652,7 +681,7 @@ testDeleteRowByColumValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -662,12 +691,12 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
 	
 	self assert: (Todo tableName) equals: 'todos'! !
 
-!TodoTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
+!DatabaseTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
 testUpdateColumn
 	| completed todo todos |
 	
@@ -680,6 +709,24 @@ testUpdateColumn
 
 	todo := Todo find: todo id.
 	self assert: todo completed equals: completed.! !
+
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:12'!
+setUp
+	dsn := 'MySQLTodosDSN'.
+	dbType := 'MySQL'.
+	super setUp.! !
+
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:29'!
+setUp
+	dsn := 'PostgresTodosDSN'.
+	dbType := 'Postgres'.
+	super setUp.! !
+
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:36'!
+setUp
+	dsn := 'SQLiteTodosDSN'.
+	dbType := 'SQLite'.
+	super setUp.! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
