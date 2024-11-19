@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 6:25:31 pm'!
+'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 7:16:58 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 85!
+!provides: 'ActiveRecord' 1 86!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -672,6 +672,30 @@ testColumnGetter
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:16:45'!
+testColumns
+	| cols |
+	
+	cols := Todo columns.
+
+	dbType caseOf: {
+		[#MySQL] -> [
+			self assert: (cols at: 'id') equals: 'int'.
+			self assert: (cols at: 'description') equals: 'text'.
+			self assert: (cols at: 'completed') equals: 'tinyint'.
+		].
+		[#Postgres] -> [
+			self assert: (cols at: 'id') equals: 'integer'.
+			self assert: (cols at: 'description') equals: 'text'.
+			self assert: (cols at: 'completed') equals: 'boolean'.
+		].
+		[#SQLite]->[
+			self assert: (cols at: #id) equals: #Integer.
+			self assert: (cols at: #description) equals: #VarChar.
+			self assert: (cols at: #completed) equals: #Double.
+		]
+	} otherwise: [ApplicationRecord unsupportedDBType].! !
 
 !DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
 testDeleteRowByColumValue
