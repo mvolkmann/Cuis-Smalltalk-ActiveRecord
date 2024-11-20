@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 19 November 2024 at 8:59:16 pm'!
+'From Cuis7.1 [latest update: #6817] on 19 November 2024 at 9:12:58 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 89!
+!provides: 'ActiveRecord' 1 90!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -764,10 +764,6 @@ testColumns
 isAbstract
 	^false! !
 
-!MySQLTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:46'!
-shouldInheritSelectors
-	^true! !
-
 !PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:29'!
 setUp
 	dsn := 'PostgresTodosDSN'.
@@ -787,10 +783,6 @@ testColumns
 isAbstract
 	^false! !
 
-!PostgresTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:58'!
-shouldInheritSelectors
-	^true! !
-
 !SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:36'!
 setUp
 	dsn := 'SQLiteTodosDSN'.
@@ -809,10 +801,6 @@ testColumns
 !SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
 isAbstract
 	^false! !
-
-!SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:06'!
-shouldInheritSelectors
-	^true! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
