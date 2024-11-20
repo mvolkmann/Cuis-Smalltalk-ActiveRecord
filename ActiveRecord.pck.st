@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 18 November 2024 at 7:19:15 pm'!
+'From Cuis7.1 [latest update: #6817] on 19 November 2024 at 8:59:16 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 87!
+!provides: 'ActiveRecord' 1 89!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -63,6 +63,16 @@ ApplicationRecord subclass: #Todo
 	category: 'ActiveRecord'!
 !classDefinition: 'Todo class' category: #ActiveRecord!
 Todo class
+	instanceVariableNames: ''!
+
+!classDefinition: #ActiveRecordError category: #ActiveRecord!
+Error subclass: #ActiveRecordError
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'ActiveRecordError class' category: #ActiveRecord!
+ActiveRecordError class
 	instanceVariableNames: ''!
 
 !classDefinition: #DatabaseAbstractTests category: #ActiveRecord!
@@ -517,9 +527,9 @@ trueValue
 		[#SQLite] -> [1]
 	} otherwise: [self unsupportedDBType]! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/17/2024 09:05:40'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 20:31:06'!
 unsupportedDBType
-	Error signal: 'unsupported database type ', dbType! !
+	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
 !ARBase class methodsFor: 'updating' stamp: 'RMV 11/18/2024 05:44:28'!
 updateAll: assocArray
@@ -608,16 +618,16 @@ sqlTypeDefault: sqlTypeString
 		['VarChar'] -> [''].
 	} otherwise: [nil].! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 20:47:36'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:14'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
 	Otherwise returns the ODBCColumn."
 
 	^ self columns at: aSymbol ifAbsent: [
-		Error signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
+		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:50:29'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:27'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
 
@@ -633,17 +643,20 @@ validateColumn: aSymbol value: anObject
 		[#VarChar] -> [anObject isString]
 	} otherwise: [
 		template := 'table {1} column {2} has unsupported type {3}'.
-		Error signal: (template format: {self tableName. aSymbol. type}).
+		ActiveRecordError signal: (template format: {self tableName. aSymbol. type}).
 	].
 
 	valid ifFalse: [
 		template := '{1} is invalid value for table {2} column {3} type {4}'.
-		Error signal: (template format: {anObject. self tableName. aSymbol. type}).
+		ActiveRecordError signal: (template format: {anObject. self tableName. aSymbol. type}).
 	].
 ! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:17:13'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:27:21'!
 setUp	
+
+	dsn ifNil: [Error signal: 'dsn not set'].
+	dbType ifNil: [Error signal: 'dbType not set'].
 
 	"Clear the cached connection. This is important when switching to a different database."
 	Todo reset.
@@ -695,6 +708,20 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
+testFirst
+	| todo |
+		
+	todo := Todo first.
+	self assert: todo description equals: descriptions first.! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:24:07'!
+testLast
+	| todo |
+		
+	todo := Todo last.
+	self assert: todo description equals: descriptions last.! !
+
 !DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
 	
@@ -714,6 +741,10 @@ testUpdateColumn
 	todo := Todo find: todo id.
 	self assert: todo completed equals: completed.! !
 
+!DatabaseAbstractTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:11'!
+isAbstract
+	^true! !
+
 !MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:12'!
 setUp
 	dsn := 'MySQLTodosDSN'.
@@ -728,6 +759,14 @@ testColumns
 	self assert: (cols at: 'id') equals: 'int'.
 	self assert: (cols at: 'description') equals: 'text'.
 	self assert: (cols at: 'completed') equals: 'tinyint'.! !
+
+!MySQLTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:50'!
+isAbstract
+	^false! !
+
+!MySQLTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:46'!
+shouldInheritSelectors
+	^true! !
 
 !PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:29'!
 setUp
@@ -744,13 +783,21 @@ testColumns
 	self assert: (cols at: 'description') equals: 'text'.
 	self assert: (cols at: 'completed') equals: 'boolean'.! !
 
+!PostgresTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:55'!
+isAbstract
+	^false! !
+
+!PostgresTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:58'!
+shouldInheritSelectors
+	^true! !
+
 !SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:36'!
 setUp
 	dsn := 'SQLiteTodosDSN'.
 	dbType := 'SQLite'.
 	super setUp.! !
 
-!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:18:51'!
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:39:32'!
 testColumns
 	| cols |
 	
@@ -758,6 +805,14 @@ testColumns
 	self assert: (cols at: #id) equals: #Integer.
 	self assert: (cols at: #description) equals: #VarChar.
 	self assert: (cols at: #completed) equals: #Double.! !
+
+!SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
+isAbstract
+	^false! !
+
+!SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:06'!
+shouldInheritSelectors
+	^true! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
