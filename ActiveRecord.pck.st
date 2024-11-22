@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 21 November 2024 at 6:35:39 pm'!
+'From Cuis7.1 [latest update: #6817] on 21 November 2024 at 6:37:07 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 91!
+!provides: 'ActiveRecord' 1 92!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -813,14 +813,14 @@ validateAssoc
 	self isKindOf: Association ::
 		ifFalse: [Error signal: 'requires Association object'].! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:13'!
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:36:52'!
 validateAssocCollection
 	"Raise error if self is not a SequenceableCollection of Association objects."
 
 	self validateSequenceable.
 
 	self allSatisfy: [:element | element isKindOf: Association] ::
-		ifFalse: [Error signal: 'requires Array of Association objects'].! !
+		ifFalse: [Error signal: 'requires SequenceableCollection of Association objects'].! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:30:25'!
 validateSequenceable
