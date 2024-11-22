@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 19 November 2024 at 9:12:58 pm'!
+'From Cuis7.1 [latest update: #6817] on 21 November 2024 at 6:35:39 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 90!
+!provides: 'ActiveRecord' 1 91!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -208,18 +208,18 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/18/2024 05:45:08'!
-update: assocArray
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/21/2024 18:35:04'!
+update: assocColl
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 	
-	self class validateAssocArray: assocArray.
+	assocColl validateAssocCollection.
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
 	stream nextPutAll: self class tableName.
 	stream nextPutAll: ' set '.
-	assocArray
+	assocColl
 		do: [:assoc |
 			stream nextPutAll: assoc key.
 			stream nextPutAll: ' = '.
@@ -351,15 +351,15 @@ reset
 	Conn := nil.
 	columns := nil.! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/18/2024 05:43:41'!
-create: assocArray
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/21/2024 18:33:36'!
+create: assocColl
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
 	| cols column dict id names queryString rs stream values |
 	
-	self validateAssocArray: assocArray.
+	assocColl validateAssocCollection.
 	
-	dict := assocArray asDictionary.
+	dict := assocColl asDictionary.
 	
 	"Raise error if any keys are not valid column names
 	or any values are not valid for their column type."
@@ -424,12 +424,12 @@ destroyAll
 	^ rs ifNil: 0 ifNotNil: [rs asTable size].
 ! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/16/2024 11:07:03'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/21/2024 18:33:55'!
 destroyBy: anAssociation
 	"Deletes all matching rows in the corresponding table."
 	| column queryString value |
 	
-	self validateAssoc: anAssociation.
+	anAssociation validateAssoc.
 	
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -464,12 +464,12 @@ find: idNumber
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ row ifNil: nil ifNotNil: [self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:07:16'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/21/2024 18:34:04'!
 findBy: anAssociation
 	"Answer collection of new instances of this class that represents matching table rows."
 	| column queryString rs value |
 
-	self validateAssoc: anAssociation.
+	anAssociation validateAssoc.
 
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -531,18 +531,18 @@ trueValue
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/18/2024 05:44:28'!
-updateAll: assocArray
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/21/2024 18:34:23'!
+updateAll: assocColl
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 
-	self validateAssocArray: assocArray.
+	assocColl validateAssocCollection.
 
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' set '.
-	assocArray
+	assocColl
 		do: [:assoc |
 			stream nextPutAll: assoc key.
 			stream nextPutAll: ' = '.
@@ -806,21 +806,28 @@ isAbstract
 logAs: aString
     ('{1} = {2}' format: {aString. self}) print! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/16/2024 19:14:01'!
-validateAssoc: anObject
-	"Raise error if anObject is not an Association object."
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:44'!
+validateAssoc
+	"Raise error if self is not an Association object."
 
-	anObject isKindOf: Association ::
+	self isKindOf: Association ::
 		ifFalse: [Error signal: 'requires Association object'].! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/16/2024 19:14:08'!
-validateAssocArray: anObject
-	"Raise error if anObject is not an Array of Association objects."
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:13'!
+validateAssocCollection
+	"Raise error if self is not a SequenceableCollection of Association objects."
 
-	anObject isArray ifFalse: [Error signal: 'requires Array'].
+	self validateSequenceable.
 
-	anObject allSatisfy: [:element | element isKindOf: Association] ::
+	self allSatisfy: [:element | element isKindOf: Association] ::
 		ifFalse: [Error signal: 'requires Array of Association objects'].! !
+
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:30:25'!
+validateSequenceable
+	"Raise error if anObject is not a SequenceableCollection."
+
+	self isCollection and: [self isSequenceable] ::
+		ifFalse: [Error signal: 'requires SequenceableCollection like Array'].! !
 
 !String methodsFor: '*ActiveRecord' stamp: 'RMV 11/10/2024 14:20:11'!
 camelToWords
