@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 21 November 2024 at 6:37:07 pm'!
+'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 6:52:06 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 92!
+!provides: 'ActiveRecord' 1 94!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -13,7 +13,7 @@ Object subclass: #ARBase
 	category: 'ActiveRecord'!
 !classDefinition: 'ARBase class' category: #ActiveRecord!
 ARBase class
-	instanceVariableNames: 'dbType columns tableName'!
+	instanceVariableNames: 'dbType columns logSQL tableName'!
 
 !classDefinition: #ApplicationRecord category: #ActiveRecord!
 ARBase subclass: #ApplicationRecord
@@ -121,41 +121,14 @@ The purpose of this class is not yet clear to be, but it is present in Rails ver
 For now it is just a subclass of ARBase that doesn't add any functionality and
 classes that correspond to database tables are subclasses of ApplicationRecord instead of ARBase.!
 
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/6/2024 19:23:09'!
+!ARBase methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:53'!
 destroy
 	"Delete the table row corresponding to the current object from the database
 	and answer the ODBCResultSet."
 	| queryString |
 	
 	queryString​ := 'delete from {1} where id={2}' format: {self class tableName. self id}.
-	^​ Conn execute: queryString.! !
-
-!ARBase methodsFor: 'deleting' stamp: 'RMV 11/17/2024 08:16:45'!
-inspect
-	"Answer string description of corresponding database record."
-	| stream |
-		
-	stream := WriteStream on: (String new: 300).
-	stream nextPutAll: '#<'.
-	stream nextPutAll: self class name.
-	stream nextPut: Character space.
-	
-	self class columns
-		associationsDo: [:assoc |
-			| name value |
-			name := assoc key.
-			value := assoc value.
-			value := self perform: name.
-			stream nextPutAll: name.
-			stream nextPutAll: ': '.
-			stream nextPutAll: (self class sqlString: value).
-		]
-		separatedBy: [
-			stream nextPutAll: ', '.
-		].
-
-	stream nextPutAll: '>'.
-	^ stream contents.! !
+	^​ self class execute: queryString.! !
 
 !ARBase methodsFor: 'private' stamp: 'RMV 11/6/2024 19:10:47'!
 changed: zeroOrOne
@@ -165,7 +138,13 @@ changed: zeroOrOne
 	message := Message selector: #changed argument: zeroOrOne. 
 	^ self doesNotUnderstand: message! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/13/2024 08:37:35'!
+!ARBase methodsFor: 'private' stamp: 'RMV 11/6/2024 19:13:19'!
+row: anODBCRow
+	"Set the row instance variable of the current object to a given ODBCRow."
+
+	row := anODBCRow! !
+
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:32:58'!
 doesNotUnderstand: aMessage
 	"Handle requests to get or set an instance variable
 	and update the corresponding database row."
@@ -192,7 +171,7 @@ doesNotUnderstand: aMessage
 			tableName := self class tableName.
 			arg := self class sqlString: arg.
 			query := 'update {1} set {2}="{3}" where id={4}' format: {tableName. instVarName. arg. self id}.
-			Conn execute: query.
+			self class execute: query.
 		]
 		ifFalse: [
 			self class validateColumn: keyword.
@@ -202,13 +181,34 @@ doesNotUnderstand: aMessage
 		].
 ! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/6/2024 19:13:19'!
-row: anODBCRow
-	"Set the row instance variable of the current object to a given ODBCRow."
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/17/2024 08:16:45'!
+inspect
+	"Answer string description of corresponding database record."
+	| stream |
+		
+	stream := WriteStream on: (String new: 300).
+	stream nextPutAll: '#<'.
+	stream nextPutAll: self class name.
+	stream nextPut: Character space.
+	
+	self class columns
+		associationsDo: [:assoc |
+			| name value |
+			name := assoc key.
+			value := assoc value.
+			value := self perform: name.
+			stream nextPutAll: name.
+			stream nextPutAll: ': '.
+			stream nextPutAll: (self class sqlString: value).
+		]
+		separatedBy: [
+			stream nextPutAll: ', '.
+		].
 
-	row := anODBCRow! !
+	stream nextPutAll: '>'.
+	^ stream contents.! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/21/2024 18:35:04'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:33:05'!
 update: assocColl
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
@@ -233,9 +233,9 @@ update: assocColl
 	stream nextPutAll: self id asString.
 	
 	queryString := stream contents.
-	^ Conn execute: queryString.	! !
+	^ self class execute: queryString.	! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 19:59:57'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:31:42'!
 columns
 	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
 
@@ -247,14 +247,14 @@ columns
 		dbType caseOf: {
 			[#MySQL] -> [
 				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
-				rs := Conn execute: queryString.
+				rs := self execute: queryString.
 				rs asTable do: [:row |
 					columns at: (row at: #COLUMN_NAME) put: (row at: #DATA_TYPE)
 				].
 			].
 			[#Postgres] -> [
 				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
-				rs := Conn execute: queryString.
+				rs := self execute: queryString.
 				rs asTable do: [:row |
 					columns at: (row at: #column_name) put: (row at: #data_type)
 				].
@@ -264,7 +264,7 @@ columns
 				which can be used to get information about its columns."
 				queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
 
-				rs := Conn execute: queryString.
+				rs := self execute: queryString.
 				rs columns do: [:column |
 					columns at: column name put: column dataType
 				].
@@ -275,14 +275,18 @@ columns
 	^ columns.
 ! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/18/2024 18:21:32'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 20:03:56'!
+connection
+	^ Conn! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:31:48'!
 count
 	"Answer number of rows in corresponding table."
 	| queryString row rs column |
 	
 	column := 'count(*)'.
 	queryString​ := 'select {1} from {2}' format: {column. self tableName}.
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	row := rs next.
 	
 	dbType caseOf: {
@@ -290,6 +294,22 @@ count
 		[#Postgres] -> [^ row at: #count].
 		[#SQLite] -> [^ row at: (column asSymbol)].
 	} otherwise: [self unsupportedDBType].! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 08:47:56'!
+dbType
+	^ dbType! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:40:16'!
+logSQL
+	"Answer whether all SQL queries should be logged to the Transcript."
+
+	^logSQL! !
+
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:46:07'!
+logSQL: aBoolean
+	"Determines whether all SQL queries should be logged to the Transcript."
+
+	logSQL := aBoolean.! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 16:23:03'!
 tableName
@@ -305,14 +325,6 @@ tableName
 	^ tableName.
 ! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 20:03:56'!
-connection
-	^ Conn! !
-
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 08:47:56'!
-dbType
-	^ dbType! !
-
 !ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:48:42'!
 disconnect
 	"Close the database connect if there is one."
@@ -322,36 +334,17 @@ disconnect
 		Conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 07:40:01'!
-establishConnection: dsnString	
-	"TODO: Delete this and always use establishConnect:dbType: ?"
-	"Open a connection to the database for a given DSN if not already open."
-	"TODO: Add support for getting username and password from '.odbc.ini'
-	by capturing output of 'odbcinst -q -s -n dsnString'?"
-
-	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].
-	Conn sqlGetInfoString: 1 :: logAs: 'establishConnect infoString'.
-	^ Conn.
-! !
-
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 07:45:26'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 18:51:32'!
 establishConnection: dsnString	 dbType: dbTypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
 
 	dbType := dbTypeSymbol.
-	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].
-	Conn sqlGetInfoString: 1 :: logAs: 'establishConnect infoString'.
-	^ Conn.
-! !
+	logSQL := false.
+	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/17/2024 05:09:58'!
-reset
-	Conn := nil.
-	columns := nil.! !
-
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/21/2024 18:33:36'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:51:14'!
 create: assocColl
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -391,19 +384,19 @@ create: assocColl
 	
 	dbType caseOf: {
 		[#MySQL] -> [
-			rs := Conn execute: queryString.
+			rs := self execute: queryString.
 			column := 'last_insert_id()'.
-			rs := Conn execute: 'select ', column.
+			rs := self execute: 'select ', column.
 			id := rs next at: column asSymbol.
 		].
 		[#Postgres] -> [
-			rs := Conn execute: queryString, ' returning id'.
+			rs := self execute: queryString, ' returning id'.
 			id := rs next at: #id.
 		].
 		[#SQLite] -> [
-			rs := Conn execute: queryString.
+			rs := self execute: queryString.
 			column := 'last_insert_rowid()'.
-			rs := Conn execute: 'select ', column.
+			rs := self execute: 'select ', column.
 			id := rs next at: column asSymbol.
 		]
 	} otherwise: [self unsupportedDBType].
@@ -411,12 +404,12 @@ create: assocColl
 	^ id.
 	! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/16/2024 10:35:44'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:08'!
 destroyAll
 	"Delete all rows from corresponding table and answer number of rows deleted."
 	| rs |
 	
-	[ rs := Conn execute: 'delete from ', tableName ] on: UnhandledError do: [:ex |
+	[ rs := self execute: 'delete from ', tableName ] on: UnhandledError do: [:ex |
 		"This happens when there are no rows in the table."
 		"We can ignore it."
 	].
@@ -424,7 +417,7 @@ destroyAll
 	^ rs ifNil: 0 ifNotNil: [rs asTable size].
 ! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/21/2024 18:33:55'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:17'!
 destroyBy: anAssociation
 	"Deletes all matching rows in the corresponding table."
 	| column queryString value |
@@ -435,36 +428,28 @@ destroyBy: anAssociation
 	value := self sqlString: anAssociation value.
 	queryString​ := 'delete from {1} where {2}={3}'
 		format: {self tableName. column. value}.
-	^​ Conn execute: queryString.
+	^​ self execute: queryString.
 ! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/11/2024 20:06:25'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:47'!
 all
 	"Answer a collection of instances of this class that represent all the rows in the corresponding table."
 	|rs|
 
-	rs := Conn execute: 'select * from ', self tableName.
+	rs := self execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 05:41:34'!
-falseValue
-	^ dbType caseOf: {
-		[#MySQL] -> [0].
-		[#Postgres] -> ['0']. "tests fail with 'f'"
-		[#SQLite] -> [0]
-	} otherwise: [self unsupportedDBType]! !
-
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/16/2024 11:04:15'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:52'!
 find: idNumber
 	"Answer new instance of this class that represents the table row with a given id."
 	| queryString row rs |
 	
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ row ifNil: nil ifNotNil: [self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/21/2024 18:34:04'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:56'!
 findBy: anAssociation
 	"Answer collection of new instances of this class that represents matching table rows."
 	| column queryString rs value |
@@ -475,10 +460,10 @@ findBy: anAssociation
 	value := self sqlString: anAssociation value.
 	queryString​ := 'select * from {1} where {2}={3}'
 		format: {self tableName. column. value}.
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:15:55'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:31:02'!
 findWhere: conditionArray
 	"Answer new instances of this class that represent matching table rows."
 	| queryString rs size stream |
@@ -496,42 +481,30 @@ findWhere: conditionArray
 	].
 	queryString := stream contents.
 	
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:08:27'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:31:07'!
 first
 	"Answer new instance of this class that represents the first record in the corresponding table."
 	| queryString row rs |
 	
 	queryString​ := 'select * from {1} limit 1' format: {self tableName}.
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/10/2024 20:09:42'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:31:10'!
 last
 	"Answer new instance of this class that represents the first record in the corresponding table."
 	| queryString row rs |
 	
 	queryString​ := 'select * from {1} order by id desc limit 1' format: {self tableName}.
-	rs := Conn execute: queryString.
+	rs := self execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 05:41:22'!
-trueValue
-	^ dbType caseOf: {
-		[#MySQL] -> [1].
-		[#Postgres] -> ['1']. "tests fail with 't'"
-		[#SQLite] -> [1]
-	} otherwise: [self unsupportedDBType]! !
-
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/18/2024 20:31:06'!
-unsupportedDBType
-	ActiveRecordError signal: 'unsupported database type ', dbType! !
-
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/21/2024 18:34:23'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:32:33'!
 updateAll: assocColl
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
@@ -553,9 +526,24 @@ updateAll: assocColl
 		].
 	
 	queryString := stream contents.	
-	^ Conn execute: queryString.	! !
+	^ self execute: queryString.	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 08:14:37'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:33:19'!
+execute: sqlString
+	"Answer result set from executing a SQL query."
+
+	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
+	^ Conn execute: sqlString.! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:34'!
+falseValue
+	^ dbType caseOf: {
+		[#MySQL] -> [0].
+		[#Postgres] -> ['0']. "tests fail with 'f'"
+		[#SQLite] -> [0]
+	} otherwise: [self unsupportedDBType]! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:51:38'!
 newRow
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
@@ -580,10 +568,9 @@ newRow
 		separatedBy: [stream nextPutAll: ', ' ].
 	stream nextPutAll: ')'.
 	queryString := stream contents.
-	queryString logAs: 'queryString'.
 	
 	"TODO: Why does this return an ODBCResultSet with rowCount 1, but next returns nil?"
-	^ Conn execute: queryString.
+	^ self execute: queryString.
 	! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:47'!
@@ -600,6 +587,11 @@ quoteIfString: value
 	^ value isString
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value]! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 05:09:58'!
+reset
+	Conn := nil.
+	columns := nil.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 18:54:23'!
 sqlString: value
@@ -618,6 +610,18 @@ sqlTypeDefault: sqlTypeString
 		['VarChar'] -> [''].
 	} otherwise: [nil].! !
 
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:22'!
+trueValue
+	^ dbType caseOf: {
+		[#MySQL] -> [1].
+		[#Postgres] -> ['1']. "tests fail with 't'"
+		[#SQLite] -> [1]
+	} otherwise: [self unsupportedDBType]! !
+
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:06'!
+unsupportedDBType
+	ActiveRecordError signal: 'unsupported database type ', dbType! !
+
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:14'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
@@ -627,7 +631,7 @@ validateColumn: aSymbol
 		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:27'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:25:50'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
 
@@ -635,11 +639,12 @@ validateColumn: aSymbol value: anObject
 	type := columns at: aSymbol.
 	
 	valid := type caseOf: {
-		[#boolean] -> [anObject isKindOf: Boolean].
+		[#boolean] -> [anObject = 0 or: [anObject = 1]].
 		[#Double] -> [anObject isFloat or: [anObject isInteger]].
 		[#Integer] -> [anObject isInteger].
 		[#LongVarChar] -> [anObject isString].
 		[#text] -> [anObject isString].
+		[#tinyint] -> [anObject isInteger].
 		[#VarChar] -> [anObject isString]
 	} otherwise: [
 		template := 'table {1} column {2} has unsupported type {3}'.
@@ -652,7 +657,7 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:27:21'!
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
 setUp	
 
 	dsn ifNil: [Error signal: 'dsn not set'].
@@ -660,7 +665,6 @@ setUp
 
 	"Clear the cached connection. This is important when switching to a different database."
 	Todo reset.
-	dsn logAs: dsn.
 
 	Todo establishConnection: dsn dbType: dbType.
 	
@@ -690,8 +694,20 @@ testColumnGetter
 testColumns
 	self subclassResponsibility! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:45'!
-testDeleteRowByColumValue
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:08'!
+testCount
+	"The class method #count is tested in the setup method."! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:40'!
+testCreate
+	"The class method #create: is tested in the setup method."! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:54'!
+testDbType
+	self subclassResponsibility! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:55:27'!
+testDeleteRowByColumnValue
 	| todos |
 	
 	Todo destroyBy: #description->descriptions first.
@@ -708,6 +724,24 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:44'!
+testDestroyAll
+	"The class method #destroyAll is tested in the setup method."! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:49:55'!
+testDestroyBy
+	| rs |
+
+	Todo destroyBy: #description->'buy milk'.
+	rs := Todo findBy: #description->'buy milk'.
+	self assert: rs size equals: 0.
+	self assert: (Todo count) equals: 2.
+	! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:16'!
+testEstablishConnection
+	"The class method #establishConnect is tested in the setup method."! !
+
 !DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
 testFirst
 	| todo |
@@ -721,6 +755,10 @@ testLast
 		
 	todo := Todo last.
 	self assert: todo description equals: descriptions last.! !
+
+!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:46:53'!
+testReset
+	"The class method #reset is tested in the setup method."! !
 
 !DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
@@ -760,6 +798,11 @@ testColumns
 	self assert: (cols at: 'description') equals: 'text'.
 	self assert: (cols at: 'completed') equals: 'tinyint'.! !
 
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:50:42'!
+testDbType
+
+	self assert: (Todo dbType) equals: 'MySQL'.! !
+
 !MySQLTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:50'!
 isAbstract
 	^false! !
@@ -779,6 +822,11 @@ testColumns
 	self assert: (cols at: 'description') equals: 'text'.
 	self assert: (cols at: 'completed') equals: 'boolean'.! !
 
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:50:38'!
+testDbType
+
+	self assert: (Todo dbType) equals: 'Postgres'.! !
+
 !PostgresTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:55'!
 isAbstract
 	^false! !
@@ -797,6 +845,11 @@ testColumns
 	self assert: (cols at: #id) equals: #Integer.
 	self assert: (cols at: #description) equals: #VarChar.
 	self assert: (cols at: #completed) equals: #Double.! !
+
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:50:32'!
+testDbType
+
+	self assert: (Todo dbType) equals: 'SQLite'.! !
 
 !SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
 isAbstract
