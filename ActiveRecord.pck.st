@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 6:52:06 pm'!
+'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 6:55:51 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 94!
+!provides: 'ActiveRecord' 1 95!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -208,12 +208,12 @@ inspect
 	stream nextPutAll: '>'.
 	^ stream contents.! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:33:05'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:55:46'!
 update: assocColl
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 	
-	assocColl validateAssocCollection.
+	assocColl validateAssocSeq.
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
@@ -344,13 +344,13 @@ establishConnection: dsnString	 dbType: dbTypeSymbol
 	logSQL := false.
 	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].! !
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:51:14'!
+!ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:55:19'!
 create: assocColl
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
 	| cols column dict id names queryString rs stream values |
 	
-	assocColl validateAssocCollection.
+	assocColl validateAssocSeq.
 	
 	dict := assocColl asDictionary.
 	
@@ -504,12 +504,12 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:32:33'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:55:32'!
 updateAll: assocColl
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 
-	assocColl validateAssocCollection.
+	assocColl validateAssocSeq.
 
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
@@ -866,17 +866,17 @@ validateAssoc
 	self isKindOf: Association ::
 		ifFalse: [Error signal: 'requires Association object'].! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:36:52'!
-validateAssocCollection
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/22/2024 18:53:57'!
+validateAssocSeq
 	"Raise error if self is not a SequenceableCollection of Association objects."
 
-	self validateSequenceable.
+	self validateSeq.
 
 	self allSatisfy: [:element | element isKindOf: Association] ::
 		ifFalse: [Error signal: 'requires SequenceableCollection of Association objects'].! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:30:25'!
-validateSequenceable
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/22/2024 18:54:27'!
+validateSeq
 	"Raise error if anObject is not a SequenceableCollection."
 
 	self isCollection and: [self isSequenceable] ::
