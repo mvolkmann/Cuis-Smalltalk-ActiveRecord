@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 6:55:51 pm'!
+'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 8:35:34 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 95!
+!provides: 'ActiveRecord' 1 99!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -8,12 +8,12 @@ SystemOrganization addCategory: #ActiveRecord!
 !classDefinition: #ARBase category: #ActiveRecord!
 Object subclass: #ARBase
 	instanceVariableNames: 'row'
-	classVariableNames: 'Conn'
+	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
 !classDefinition: 'ARBase class' category: #ActiveRecord!
 ARBase class
-	instanceVariableNames: 'dbType columns logSQL tableName'!
+	instanceVariableNames: 'adapter conn dbType columns logSQL tableName'!
 
 !classDefinition: #ApplicationRecord category: #ActiveRecord!
 ARBase subclass: #ApplicationRecord
@@ -65,6 +65,46 @@ ApplicationRecord subclass: #Todo
 Todo class
 	instanceVariableNames: ''!
 
+!classDefinition: #DBAdapter category: #ActiveRecord!
+Object subclass: #DBAdapter
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'DBAdapter class' category: #ActiveRecord!
+DBAdapter class
+	instanceVariableNames: ''!
+
+!classDefinition: #MySQLAdapter category: #ActiveRecord!
+DBAdapter subclass: #MySQLAdapter
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'MySQLAdapter class' category: #ActiveRecord!
+MySQLAdapter class
+	instanceVariableNames: ''!
+
+!classDefinition: #PostgresAdapter category: #ActiveRecord!
+DBAdapter subclass: #PostgresAdapter
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'PostgresAdapter class' category: #ActiveRecord!
+PostgresAdapter class
+	instanceVariableNames: ''!
+
+!classDefinition: #SQLiteAdapter category: #ActiveRecord!
+DBAdapter subclass: #SQLiteAdapter
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'SQLiteAdapter class' category: #ActiveRecord!
+SQLiteAdapter class
+	instanceVariableNames: ''!
+
 !classDefinition: #ActiveRecordError category: #ActiveRecord!
 Error subclass: #ActiveRecordError
 	instanceVariableNames: ''
@@ -75,18 +115,18 @@ Error subclass: #ActiveRecordError
 ActiveRecordError class
 	instanceVariableNames: ''!
 
-!classDefinition: #DatabaseAbstractTests category: #ActiveRecord!
-TestCase subclass: #DatabaseAbstractTests
+!classDefinition: #DBAbstractTests category: #ActiveRecord!
+TestCase subclass: #DBAbstractTests
 	instanceVariableNames: 'descriptions dsn dbType'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
-!classDefinition: 'DatabaseAbstractTests class' category: #ActiveRecord!
-DatabaseAbstractTests class
+!classDefinition: 'DBAbstractTests class' category: #ActiveRecord!
+DBAbstractTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #MySQLTests category: #ActiveRecord!
-DatabaseAbstractTests subclass: #MySQLTests
+DBAbstractTests subclass: #MySQLTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -96,7 +136,7 @@ MySQLTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #PostgresTests category: #ActiveRecord!
-DatabaseAbstractTests subclass: #PostgresTests
+DBAbstractTests subclass: #PostgresTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -106,7 +146,7 @@ PostgresTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #SQLiteTests category: #ActiveRecord!
-DatabaseAbstractTests subclass: #SQLiteTests
+DBAbstractTests subclass: #SQLiteTests
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
@@ -275,11 +315,11 @@ columns
 	^ columns.
 ! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/6/2024 20:03:56'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 19:48:53'!
 connection
-	^ Conn! !
+	^ conn! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:31:48'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 20:35:20'!
 count
 	"Answer number of rows in corresponding table."
 	| queryString row rs column |
@@ -287,13 +327,8 @@ count
 	column := 'count(*)'.
 	queryString​ := 'select {1} from {2}' format: {column. self tableName}.
 	rs := self execute: queryString.
-	row := rs next.
-	
-	dbType caseOf: {
-		[#MySQL] -> [^ row at: (column asSymbol)].
-		[#Postgres] -> [^ row at: #count].
-		[#SQLite] -> [^ row at: (column asSymbol)].
-	} otherwise: [self unsupportedDBType].! !
+	row := rs next.	
+	^ row at: adapter countColumn.! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/17/2024 08:47:56'!
 dbType
@@ -325,24 +360,35 @@ tableName
 	^ tableName.
 ! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/6/2024 18:48:42'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 19:57:21'!
 disconnect
 	"Close the database connect if there is one."
 
-	Conn ifNotNil: [
-		Conn close.
-		Conn := nil.
+	'disconnect entered' print.
+	conn ifNotNil: [
+		conn close.
+		adapter := nil.
+		columns := nil.
+		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 18:51:32'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 20:34:46'!
 establishConnection: dsnString	 dbType: dbTypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
 
+	conn ifNotNil: [self disconnect].
+	
 	dbType := dbTypeSymbol.
+	adapter := dbType caseOf: {
+		[#MySQL] -> [MySQLAdapter].
+		[#Postgres] -> [PostgresAdapter].
+		[#SQLite] -> [SQLiteAdapter].
+	} otherwise: [self unsupportedDBType].
+
 	logSQL := false.
-	Conn ifNil: [ Conn := ODBCConnection dsn: dsnString user: '' password: '' ].! !
+	conn := ODBCConnection dsn: dsnString user: '' password: ''.! !
 
 !ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:55:19'!
 create: assocColl
@@ -528,12 +574,12 @@ updateAll: assocColl
 	queryString := stream contents.	
 	^ self execute: queryString.	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:33:19'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 19:49:16'!
 execute: sqlString
 	"Answer result set from executing a SQL query."
 
 	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
-	^ Conn execute: sqlString.! !
+	^ conn execute: sqlString.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:34'!
 falseValue
@@ -588,9 +634,9 @@ quoteIfString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/17/2024 05:09:58'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 19:49:20'!
 reset
-	Conn := nil.
+	conn := nil.
 	columns := nil.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 18:54:23'!
@@ -657,7 +703,31 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 20:33:10'!
+countColumn
+	"Answer name of column that holds the count of records in a table."
+
+	self subclassResponsibility.! !
+
+!MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:20'!
+countColumn
+	"Answer name of column that holds the count of records in a table."
+
+	^ 'count(*)' asSymbol! !
+
+!PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:46'!
+countColumn
+	"Answer name of column that holds the count of records in a table."
+
+	^ #count! !
+
+!SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:57'!
+countColumn
+	"Answer name of column that holds the count of records in a table."
+
+	^ 'count(*)' asSymbol! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
 setUp	
 
 	dsn ifNil: [Error signal: 'dsn not set'].
@@ -677,36 +747,36 @@ setUp
 	descriptions do: [:description | Todo create: {#description -> description}].
 	self assert: Todo count equals: 3.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
 tearDown
 
 	Todo disconnect.
 	! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:19:09'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:19:09'!
 testColumns
 	self subclassResponsibility! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:08'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:08'!
 testCount
 	"The class method #count is tested in the setup method."! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:40'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:40'!
 testCreate
 	"The class method #create: is tested in the setup method."! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:54'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:54'!
 testDbType
 	self subclassResponsibility! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:55:27'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:55:27'!
 testDeleteRowByColumnValue
 	| todos |
 	
@@ -714,7 +784,7 @@ testDeleteRowByColumnValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -724,11 +794,11 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:44'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:44'!
 testDestroyAll
 	"The class method #destroyAll is tested in the setup method."! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:49:55'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:49:55'!
 testDestroyBy
 	| rs |
 
@@ -738,34 +808,34 @@ testDestroyBy
 	self assert: (Todo count) equals: 2.
 	! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:16'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:16'!
 testEstablishConnection
 	"The class method #establishConnect is tested in the setup method."! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
 testFirst
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:24:07'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:24:07'!
 testLast
 	| todo |
 		
 	todo := Todo last.
 	self assert: todo description equals: descriptions last.! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:46:53'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:46:53'!
 testReset
 	"The class method #reset is tested in the setup method."! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
 testTableName
 	
 	self assert: (Todo tableName) equals: 'todos'! !
 
-!DatabaseAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
 testUpdateColumn
 	| completed todo todos |
 	
@@ -779,7 +849,7 @@ testUpdateColumn
 	todo := Todo find: todo id.
 	self assert: todo completed equals: completed.! !
 
-!DatabaseAbstractTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:11'!
+!DBAbstractTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:11'!
 isAbstract
 	^true! !
 
