@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:38:12 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:40:01 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 110!
+!provides: 'ActiveRecord' 1 111!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -833,6 +833,12 @@ number: aNumber
 	Type check.
 	aNumber logAs: 'aNumber'.
 	number := aNumber.! !
+
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:39:00'!
+takeDict: aDict
+
+	Type check.
+	'success' print.! !
 
 !Type class methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:33:36'!
 check
