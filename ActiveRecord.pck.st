@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:33:47 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:38:12 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 109!
+!provides: 'ActiveRecord' 1 110!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -827,10 +827,11 @@ countColumn
 number
 	^number! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:20:28'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:36:05'!
 number: aNumber
 
-	self typeCheck.
+	Type check.
+	aNumber logAs: 'aNumber'.
 	number := aNumber.! !
 
 !Type class methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:33:36'!
@@ -1091,9 +1092,12 @@ testDbType
 isAbstract
 	^false! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 15:37:57'!
 logAs: aString
-    ('{1} = {2}' format: {aString. self}) print! !
+
+	| sender |
+	sender := thisContext sender.
+	('In {1}, {2} = {3}' format: {sender. aString. self}) print! !
 
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:44'!
 validateAssoc
