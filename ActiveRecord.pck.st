@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 11:23:24 am'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 1:03:52 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 100!
+!provides: 'ActiveRecord' 1 101!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -248,18 +248,18 @@ inspect
 	stream nextPutAll: '>'.
 	^ stream contents.! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:55:46'!
-update: assocColl
+!ARBase methodsFor: 'updating' stamp: 'RMV 11/24/2024 12:56:35'!
+update: assocSeq
 	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 	
-	assocColl validateAssocSeq.
+	assocSeq validateAssocSeq.
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
 	stream nextPutAll: self class tableName.
 	stream nextPutAll: ' set '.
-	assocColl
+	assocSeq
 		do: [:assoc |
 			stream nextPutAll: assoc key.
 			stream nextPutAll: ' = '.
@@ -372,8 +372,8 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 11:03:38'!
-establishConnection: dsnString	 dbType: dbtypeSymbol
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 13:03:43'!
+establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
@@ -390,7 +390,7 @@ establishConnection: dsnString	 dbType: dbtypeSymbol
 	} otherwise: [self unsupportedDBType].
 
 	logSQL := false.
-	conn := ODBCConnection dsn: dsnString user: '' password: ''.! !
+	conn := ODBCConnection dsn: dsnSymbol user: '' password: ''.! !
 
 !ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:55:19'!
 create: assocColl
@@ -855,10 +855,10 @@ testUpdateColumn
 isAbstract
 	^true! !
 
-!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:12'!
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 13:03:18'!
 setUp
-	dsn := 'MySQLTodosDSN'.
-	dbType := 'MySQL'.
+	dsn := #MySQLTodosDSN.
+	dbType := #MySQL.
 	super setUp.! !
 
 !MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:17:54'!
@@ -879,10 +879,10 @@ testDbType
 isAbstract
 	^false! !
 
-!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:29'!
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 13:03:05'!
 setUp
-	dsn := 'PostgresTodosDSN'.
-	dbType := 'Postgres'.
+	dsn := #PostgresTodosDSN.
+	dbType := #Postgres.
 	super setUp.! !
 
 !PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:18:21'!
@@ -903,10 +903,10 @@ testDbType
 isAbstract
 	^false! !
 
-!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 18:14:36'!
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 13:02:53'!
 setUp
-	dsn := 'SQLiteTodosDSN'.
-	dbType := 'SQLite'.
+	dsn := #SQLiteTodosDSN.
+	dbType := #SQLite.
 	super setUp.! !
 
 !SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:39:32'!
@@ -931,9 +931,10 @@ isAbstract
 logAs: aString
     ('{1} = {2}' format: {aString. self}) print! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 11:23:07'!
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 12:59:37'!
 typeCheck
 	"Raise error if any argument has the wrong type."
+	"TODO: Test this on in an instance method."
 	| argNodes argValues code implementor keywords method receiver selector sender |
 
 	sender := thisContext sender.
@@ -958,7 +959,10 @@ typeCheck
 			keyword := keywords at: index.
 			argValue := argValues at: index.
 			argValue isKindOf: class :: ifFalse: [
-				Error signal: ('{1} {2} must be a kind of {3}' format: {keyword. argName. className}).
+				| template values |
+				template := '{1} {2} must be kind of {3} but was {4}'.
+				values := {keyword. argName. className. argValue class name}.
+				Error signal: (template format: values).
 			].
 		]
 	].! !
