@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 1:03:52 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 1:20:59 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 101!
+!provides: 'ActiveRecord' 1 103!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -372,15 +372,13 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 13:03:43'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 13:15:30'!
 establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
 	
 	self typeCheck.
-
-	conn ifNotNil: [self disconnect].
 	
 	dbType := dbtypeSymbol.
 	adapter := dbType caseOf: {
@@ -390,7 +388,17 @@ establishConnection: dsnSymbol dbType: dbtypeSymbol
 	} otherwise: [self unsupportedDBType].
 
 	logSQL := false.
-	conn := ODBCConnection dsn: dsnSymbol user: '' password: ''.! !
+	
+	conn ifNotNil: [
+		conn dsn = dsnSymbol ifFalse: [
+			self disconnect.
+			conn := nil.
+		]
+	].
+
+	conn ifNil: [
+		conn := ODBCConnection dsn: dsnSymbol user: '' password: ''.
+	].! !
 
 !ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:55:19'!
 create: assocColl
@@ -465,12 +473,13 @@ destroyAll
 	^ rs ifNil: 0 ifNotNil: [rs asTable size].
 ! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:17'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/24/2024 13:20:37'!
 destroyBy: anAssociation
 	"Deletes all matching rows in the corresponding table."
 	| column queryString value |
 	
-	anAssociation validateAssoc.
+	"anAssociation validateAssoc."
+	self typeCheck.
 	
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -1021,3 +1030,7 @@ camelToWords
 dataType
 	"answer the receiver's data type"
 	^ dataType! !
+
+!ODBCConnection methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 13:07:54'!
+dsn
+	^dsn! !
