@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 1:20:59 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:01:31 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 103!
+!provides: 'ActiveRecord' 1 105!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -496,22 +496,24 @@ all
 	rs := self execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:52'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 13:29:05'!
 find: idNumber
 	"Answer new instance of this class that represents the table row with a given id."
 	| queryString row rs |
+	
+	self typeCheck.
 	
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
 	rs := self execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ row ifNil: nil ifNotNil: [self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:56'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 13:34:40'!
 findBy: anAssociation
 	"Answer collection of new instances of this class that represents matching table rows."
 	| column queryString rs value |
 
-	anAssociation validateAssoc.
+	self typeCheck.
 
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -520,19 +522,21 @@ findBy: anAssociation
 	rs := self execute: queryString.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:31:02'!
-findWhere: conditionArray
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 15:00:50'!
+findWhere: conditionSeq
 	"Answer new instances of this class that represent matching table rows."
 	| queryString rs size stream |
 	
-	size := conditionArray size.
+	conditionSeq validateAssocSeq.
+	
+	size := conditionSeq size.
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName}.
 	
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'select * from '.
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' where '.
-	conditionArray withIndexDo: [:condition :index |
+	conditionSeq withIndexDo: [:condition :index |
 		stream nextPutAll: condition.
 		index < size ifTrue: [ stream nextPutAll: ' and ' ].
 	].
@@ -585,11 +589,14 @@ updateAll: assocColl
 	queryString := stream contents.	
 	^ self execute: queryString.	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 19:49:16'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 13:33:34'!
 execute: sqlString
 	"Answer result set from executing a SQL query."
+	
+	self typeCheck.
 
 	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
+	conn ifNil: [ActiveRecordError signal: 'database connection (conn) not set']. 
 	^ conn execute: sqlString.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:34'!
@@ -936,11 +943,37 @@ testDbType
 isAbstract
 	^false! !
 
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 14:55:38'!
+classFromName: nameSymbol
+	"Answer class object corresponding to a class name string."
+	| class globalDict |
+
+	globalDict := Smalltalk globals at: #Smalltalk.
+	class := globalDict at: nameSymbol ifAbsent: nil.
+	
+	class ifNil: [
+		| className |
+		className := nameSymbol caseOf: {
+			[#Coll] -> [#Collection].
+			[#Dict] -> [#Dictionary].
+			[#IdDict] -> [#IdentityDictionary].
+			[#Ord] -> [#OrderedCollection].
+			[#Seq] -> [#SequenceableCollection].
+			[#Sorted] -> [#SortedCollection].
+		} otherwise: nil.
+		className ifNotNil: [
+			class := globalDict at: className ifAbsent: nil.
+		]
+	].
+		
+	^class.
+! !
+
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/5/2024 18:37:07'!
 logAs: aString
     ('{1} = {2}' format: {aString. self}) print! !
 
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 12:59:37'!
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 15:01:25'!
 typeCheck
 	"Raise error if any argument has the wrong type."
 	"TODO: Test this on in an instance method."
@@ -958,11 +991,10 @@ typeCheck
 	argNodes := method arguments.
 		
 	argNodes withIndexDo: [:argNode :index |
-		| argName class className globalDict |
+		| argName class className |
 		argName := argNode name.
 		className := argName substringFromFirstUpper asSymbol.
-		globalDict := Smalltalk globals at: #Smalltalk.
-		class := globalDict at: className.
+		class := Object classFromName: className.
 		class ifNotNil: [
 			| argValue keyword |
 			keyword := keywords at: index.
