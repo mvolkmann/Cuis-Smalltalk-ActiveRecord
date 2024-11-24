@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:01:31 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:17:22 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 105!
+!provides: 'ActiveRecord' 1 107!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -184,7 +184,7 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:32:58'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 11/24/2024 15:16:28'!
 doesNotUnderstand: aMessage
 	"Handle requests to get or set an instance variable
 	and update the corresponding database row."
@@ -195,7 +195,7 @@ doesNotUnderstand: aMessage
 	"Only handle messages with a single keyword."
 	keywords size > 1 ifTrue: [^super doesNotUnderstand: aMessage].
 	
-	keyword := keywords first.
+	keyword := keywords first asSymbol.
 	"TODO: This will not be called if the keyword matches an existing selected (ex. changed:)."
 	keyword endsWith: ':' ::
 		ifTrue: [
@@ -340,10 +340,11 @@ logSQL
 
 	^logSQL! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:46:07'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/24/2024 15:02:14'!
 logSQL: aBoolean
 	"Determines whether all SQL queries should be logged to the Transcript."
 
+	self typeCheck.
 	logSQL := aBoolean.! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 16:23:03'!
@@ -565,18 +566,18 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/22/2024 18:55:32'!
-updateAll: assocColl
+!ARBase class methodsFor: 'updating' stamp: 'RMV 11/24/2024 15:06:47'!
+updateAll: assocSeq
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
 	| queryString stream |
 
-	assocColl validateAssocSeq.
+	assocSeq validateAssocSeq.
 
 	stream := WriteStream on: (String new: 200).
 	stream nextPutAll: 'update '.
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' set '.
-	assocColl
+	assocSeq
 		do: [:assoc |
 			stream nextPutAll: assoc key.
 			stream nextPutAll: ' = '.
@@ -637,13 +638,14 @@ newRow
 	^ self execute: queryString.
 	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/6/2024 18:51:47'!
-newRow: row
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:03:13'!
+newRow: anODBCRow
 	"Create and answer a new instance of this class with a row instance variable."
 	| instance |
 
+	self typeCheck.
 	instance := self new.
-	instance row: row.
+	instance row: anODBCRow.
 	^instance.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/10/2024 20:23:06'!
@@ -664,9 +666,12 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:44:00'!
-sqlTypeDefault: sqlTypeString
-	^​ sqlTypeString caseOf: {
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:17:05'!
+sqlTypeDefault: typeString
+
+	self typeCheck.
+
+	^​ typeString caseOf: {
 		['boolean'] -> ['f'].
 		['Double'] -> [0].
 		['Integer'] -> [0].
@@ -686,18 +691,22 @@ trueValue
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:14'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:07:00'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
 	Otherwise returns the ODBCColumn."
+
+	self typeCheck.
 
 	^ self columns at: aSymbol ifAbsent: [
 		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:25:50'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:15:14'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
+
+	self typeCheck.
 
 	column := self validateColumn: aSymbol.
 	type := columns at: aSymbol.
