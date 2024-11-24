@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:17:22 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:28:05 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 107!
+!provides: 'ActiveRecord' 1 108!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -105,6 +105,16 @@ DBAdapter subclass: #SQLiteAdapter
 SQLiteAdapter class
 	instanceVariableNames: ''!
 
+!classDefinition: #Demo category: #ActiveRecord!
+Object subclass: #Demo
+	instanceVariableNames: 'number'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'Demo class' category: #ActiveRecord!
+Demo class
+	instanceVariableNames: ''!
+
 !classDefinition: #ActiveRecordError category: #ActiveRecord!
 Error subclass: #ActiveRecordError
 	instanceVariableNames: ''
@@ -156,10 +166,58 @@ SQLiteTests class
 	instanceVariableNames: ''!
 
 
+!ARBase commentStamp: 'RMV 11/24/2024 15:22:16' prior: 0!
+This is the superclass of all classes that represents database tables.
+It adds "Active Record" functionality.!
+
 !ApplicationRecord commentStamp: 'RMV 11/10/2024 16:50:56' prior: 0!
 The purpose of this class is not yet clear to be, but it is present in Rails version 8.
 For now it is just a subclass of ARBase that doesn't add any functionality and
 classes that correspond to database tables are subclasses of ApplicationRecord instead of ARBase.!
+
+!Dog commentStamp: 'RMV 11/24/2024 15:23:04' prior: 0!
+This class is used to test the `tableName` method which should return "dogs".!
+
+!GearShiftKnob commentStamp: 'RMV 11/24/2024 15:23:23' prior: 0!
+This class is used to test the `tableName` method which should return "gear_shift_knobs".!
+
+!Person commentStamp: 'RMV 11/24/2024 15:23:34' prior: 0!
+This class is used to test the `tableName` method which should return "people".!
+
+!Todo commentStamp: 'RMV 11/24/2024 15:24:04' prior: 0!
+This class makes the database table "todos" accessible.!
+
+!DBAdapter commentStamp: 'RMV 11/24/2024 15:27:02' prior: 0!
+This is the superclass of all database-specific adapters.
+It defines the methods that such adapters are required to implement.!
+
+!MySQLAdapter commentStamp: 'RMV 11/24/2024 15:27:44' prior: 0!
+This is a subclass of DBAdapter that implements the methods it requires in ways that are specific to MySQL.!
+
+!PostgresAdapter commentStamp: 'RMV 11/24/2024 15:27:54' prior: 0!
+This is a subclass of DBAdapter that implements the methods it requires in ways that are specific to Postgres.!
+
+!SQLiteAdapter commentStamp: 'RMV 11/24/2024 15:28:01' prior: 0!
+This is a subclass of DBAdapter that implements the methods it requires in ways that are specific to SQLite.!
+
+!Demo commentStamp: 'RMV 11/24/2024 15:21:29' prior: 0!
+The purpose of this class is to verify that `self typeCheck` works in instance methods.!
+
+!ActiveRecordError commentStamp: 'RMV 11/24/2024 15:24:30' prior: 0!
+Instances of this class represent errors signaled by methods in the ActiveRecord package.!
+
+!DBAbstractTests commentStamp: 'RMV 11/24/2024 15:25:33' prior: 0!
+This is the superclass of classes that implement database-specific test classes.
+It provides test methods that are identical regardless of the database type (MySQL, Postgres, SQLite, ...).!
+
+!MySQLTests commentStamp: 'RMV 11/24/2024 15:25:54' prior: 0!
+This tests all the ActiveRecord methods with a MySQL database.!
+
+!PostgresTests commentStamp: 'RMV 11/24/2024 15:26:15' prior: 0!
+This tests all the ActiveRecord methods with a Postgres database.!
+
+!SQLiteTests commentStamp: 'RMV 11/24/2024 15:26:23' prior: 0!
+This tests all the ActiveRecord methods with a SQLite database.!
 
 !ARBase methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:53'!
 destroy
@@ -753,6 +811,16 @@ countColumn
 	"Answer name of column that holds the count of records in a table."
 
 	^ 'count(*)' asSymbol! !
+
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:19:38'!
+number
+	^number! !
+
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:20:28'!
+number: aNumber
+
+	self typeCheck.
+	number := aNumber.! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
 setUp	
