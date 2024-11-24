@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 22 November 2024 at 8:35:34 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 11:23:24 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 99!
+!provides: 'ActiveRecord' 1 100!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -372,15 +372,17 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 20:34:46'!
-establishConnection: dsnString	 dbType: dbTypeSymbol
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 11:03:38'!
+establishConnection: dsnString	 dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
+	
+	self typeCheck.
 
 	conn ifNotNil: [self disconnect].
 	
-	dbType := dbTypeSymbol.
+	dbType := dbtypeSymbol.
 	adapter := dbType caseOf: {
 		[#MySQL] -> [MySQLAdapter].
 		[#Postgres] -> [PostgresAdapter].
@@ -929,6 +931,38 @@ isAbstract
 logAs: aString
     ('{1} = {2}' format: {aString. self}) print! !
 
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 11:23:07'!
+typeCheck
+	"Raise error if any argument has the wrong type."
+	| argNodes argValues code implementor keywords method receiver selector sender |
+
+	sender := thisContext sender.
+	argValues := sender arguments.
+	receiver := thisContext sender receiver.
+	selector := sender selector.
+	keywords := selector keywords.
+	
+	implementor := receiver class lookupClassImplementingSelector: selector.
+	code := implementor sourceCodeAt: selector.
+	method := Parser new parse: code class: implementor.
+	argNodes := method arguments.
+		
+	argNodes withIndexDo: [:argNode :index |
+		| argName class className globalDict |
+		argName := argNode name.
+		className := argName substringFromFirstUpper asSymbol.
+		globalDict := Smalltalk globals at: #Smalltalk.
+		class := globalDict at: className.
+		class ifNotNil: [
+			| argValue keyword |
+			keyword := keywords at: index.
+			argValue := argValues at: index.
+			argValue isKindOf: class :: ifFalse: [
+				Error signal: ('{1} {2} must be a kind of {3}' format: {keyword. argName. className}).
+			].
+		]
+	].! !
+
 !Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:44'!
 validateAssoc
 	"Raise error if self is not an Association object."
@@ -951,6 +985,13 @@ validateSeq
 
 	self isCollection and: [self isSequenceable] ::
 		ifFalse: [Error signal: 'requires SequenceableCollection like Array'].! !
+
+!CharacterSequence methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 11:02:32'!
+substringFromFirstUpper
+	| index |
+	index := self findFirst: [:char | char isUppercase].
+	^ index > 0 ifTrue: [self copyFrom: index to: self size] ifFalse: nil.
+! !
 
 !String methodsFor: '*ActiveRecord' stamp: 'RMV 11/10/2024 14:20:11'!
 camelToWords
