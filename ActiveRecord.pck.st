@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 7:20:28 pm'!
+'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 8:35:32 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 115!
+!provides: 'ActiveRecord' 1 116!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -1027,36 +1027,6 @@ testDbType
 !SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
 isAbstract
 	^false! !
-
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 15:37:57'!
-logAs: aString
-
-	| sender |
-	sender := thisContext sender.
-	('In {1}, {2} = {3}' format: {sender. aString. self}) print! !
-
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/21/2024 18:31:44'!
-validateAssoc
-	"Raise error if self is not an Association object."
-
-	self isKindOf: Association ::
-		ifFalse: [Error signal: 'requires Association object'].! !
-
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/22/2024 18:53:57'!
-validateAssocSeq
-	"Raise error if self is not a SequenceableCollection of Association objects."
-
-	self validateSeq.
-
-	self allSatisfy: [:element | element isKindOf: Association] ::
-		ifFalse: [Error signal: 'requires SequenceableCollection of Association objects'].! !
-
-!Object methodsFor: '*ActiveRecord' stamp: 'RMV 11/22/2024 18:54:27'!
-validateSeq
-	"Raise error if anObject is not a SequenceableCollection."
-
-	self isCollection and: [self isSequenceable] ::
-		ifFalse: [Error signal: 'requires SequenceableCollection like Array'].! !
 
 !CharacterSequence methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 11:02:32'!
 substringFromFirstUpper
