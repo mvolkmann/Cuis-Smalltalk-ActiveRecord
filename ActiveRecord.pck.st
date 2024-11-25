@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 3:40:01 pm'!
+'From Cuis7.1 [latest update: #6817] on 24 November 2024 at 6:44:38 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 111!
+!provides: 'ActiveRecord' 1 114!
 !requires: 'ODBC' 1 9 nil!
 SystemOrganization addCategory: #ActiveRecord!
 
@@ -115,14 +115,14 @@ Object subclass: #Demo
 Demo class
 	instanceVariableNames: ''!
 
-!classDefinition: #Type category: #ActiveRecord!
-Object subclass: #Type
+!classDefinition: #TypeCheck category: #ActiveRecord!
+Object subclass: #TypeCheck
 	instanceVariableNames: ''
-	classVariableNames: ''
+	classVariableNames: 'Enabled'
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
-!classDefinition: 'Type class' category: #ActiveRecord!
-Type class
+!classDefinition: 'TypeCheck class' category: #ActiveRecord!
+TypeCheck class
 	instanceVariableNames: ''!
 
 !classDefinition: #ActiveRecordError category: #ActiveRecord!
@@ -408,11 +408,11 @@ logSQL
 
 	^logSQL! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/24/2024 15:32:00'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/24/2024 18:20:14'!
 logSQL: aBoolean
 	"Determines whether all SQL queries should be logged to the Transcript."
 
-	Type check.
+	TypeCheck check.
 
 	logSQL := aBoolean.! !
 
@@ -430,11 +430,10 @@ tableName
 	^ tableName.
 ! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/22/2024 19:57:21'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 18:24:51'!
 disconnect
 	"Close the database connect if there is one."
 
-	'disconnect entered' print.
 	conn ifNotNil: [
 		conn close.
 		adapter := nil.
@@ -442,13 +441,13 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 15:31:38'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 18:20:14'!
 establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
 	
-	Type check.
+	TypeCheck check.
 	
 	dbType := dbtypeSymbol.
 	adapter := dbType caseOf: {
@@ -543,12 +542,12 @@ destroyAll
 	^ rs ifNil: 0 ifNotNil: [rs asTable size].
 ! !
 
-!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/24/2024 15:31:32'!
+!ARBase class methodsFor: 'deleting' stamp: 'RMV 11/24/2024 18:20:14'!
 destroyBy: anAssociation
 	"Deletes all matching rows in the corresponding table."
 	| column queryString value |
 	
-	Type check.
+	TypeCheck check.
 	
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -565,24 +564,24 @@ all
 	rs := self execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 15:31:48'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 18:20:14'!
 find: idNumber
 	"Answer new instance of this class that represents the table row with a given id."
 	| queryString row rs |
 	
-	Type check.
+	TypeCheck check.
 	
 	queryString​ := 'select * from {1} where id={2}' format: {self tableName. idNumber}.
 	rs := self execute: queryString.
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ row ifNil: nil ifNotNil: [self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 15:31:53'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 18:20:14'!
 findBy: anAssociation
 	"Answer collection of new instances of this class that represents matching table rows."
 	| column queryString rs value |
 
-	Type check.
+	TypeCheck check.
 
 	column := anAssociation key.
 	value := self sqlString: anAssociation value.
@@ -658,11 +657,11 @@ updateAll: assocSeq
 	queryString := stream contents.	
 	^ self execute: queryString.	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:31:42'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 execute: sqlString
 	"Answer result set from executing a SQL query."
 	
-	Type check.
+	TypeCheck check.
 
 	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
 	conn ifNil: [ActiveRecordError signal: 'database connection (conn) not set']. 
@@ -706,12 +705,12 @@ newRow
 	^ self execute: queryString.
 	! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:32:06'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 newRow: anODBCRow
 	"Create and answer a new instance of this class with a row instance variable."
 	| instance |
 
-	Type check.
+	TypeCheck check.
 
 	instance := self new.
 	instance row: anODBCRow.
@@ -735,10 +734,10 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:32:10'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 sqlTypeDefault: typeString
 
-	Type check.
+	TypeCheck check.
 
 	^​ typeString caseOf: {
 		['boolean'] -> ['f'].
@@ -760,22 +759,22 @@ trueValue
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:32:14'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
 	Otherwise returns the ODBCColumn."
 
-	Type check.
+	TypeCheck check.
 
 	^ self columns at: aSymbol ifAbsent: [
 		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 15:32:30'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
 
-	Type check.
+	TypeCheck check.
 
 	column := self validateColumn: aSymbol.
 	type := columns at: aSymbol.
@@ -827,39 +826,58 @@ countColumn
 number
 	^number! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:36:05'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 18:20:14'!
 number: aNumber
 
-	Type check.
+	TypeCheck check.
 	aNumber logAs: 'aNumber'.
 	number := aNumber.! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:39:00'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 18:20:14'!
 takeDict: aDict
 
-	Type check.
+	TypeCheck check.
 	'success' print.! !
 
-!Type class methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:33:36'!
+!TypeCheck class methodsFor: 'accessing' stamp: 'RMV 11/24/2024 18:21:02'!
+disable
+	Enabled := false.! !
+
+!TypeCheck class methodsFor: 'accessing' stamp: 'RMV 11/24/2024 18:20:55'!
+enable
+	Enabled := true.! !
+
+!TypeCheck class methodsFor: 'class initialization' stamp: 'RMV 11/24/2024 18:22:38'!
+initialize
+	Enabled := false.! !
+
+!TypeCheck class methodsFor: 'utility' stamp: 'RMV 11/24/2024 18:41:31'!
+argNamesinReceiver: anObject selector: selectorSymbol
+	"Answer an OrderedCollection of the argument names in a given method."
+	| argNodes code implementor method |
+	
+	implementor := anObject class lookupClassImplementingSelector: selectorSymbol.
+	code := implementor sourceCodeAt: selectorSymbol.
+	method := Parser new parse: code class: implementor.
+	argNodes := method arguments.
+	^ argNodes collect: [:node | node name].! !
+
+!TypeCheck class methodsFor: 'utility' stamp: 'RMV 11/24/2024 18:44:29'!
 check
 	"Raise error if any argument has the wrong type."
-	"TODO: Test this on in an instance method."
-	| argNodes argValues code implementor keywords method receiver selector sender |
+	| argNames argValues keywords receiver selector sender |
+	
+	Enabled ifFalse: [^self].
 
 	sender := thisContext sender.
-	argValues := sender arguments.
 	receiver := thisContext sender receiver.
 	selector := sender selector.
 	keywords := selector keywords.
-	
-	implementor := receiver class lookupClassImplementingSelector: selector.
-	code := implementor sourceCodeAt: selector.
-	method := Parser new parse: code class: implementor.
-	argNodes := method arguments.
+	argNames := self argNamesinReceiver: receiver selector: selector.
+	argValues := sender arguments.
 		
-	argNodes withIndexDo: [:argNode :index |
-		| argName class className |
-		argName := argNode name.
+	argNames withIndexDo: [:argName :index |
+		| class className |
 		className := argName substringFromFirstUpper asSymbol.
 		class := self classFromName: className.
 		class ifNotNil: [
@@ -875,7 +893,7 @@ check
 		]
 	].! !
 
-!Type class methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:29:17'!
+!TypeCheck class methodsFor: 'utility' stamp: 'RMV 11/24/2024 15:29:17'!
 classFromName: nameSymbol
 	"Answer class object corresponding to a class name string."
 	| class globalDict |
@@ -1163,3 +1181,4 @@ dataType
 !ODBCConnection methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 13:07:54'!
 dsn
 	^dsn! !
+TypeCheck initialize!
