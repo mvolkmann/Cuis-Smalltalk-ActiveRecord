@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 8:35:32 am'!
+'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 6:29:11 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 116!
+!provides: 'ActiveRecord' 1 117!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -817,11 +817,10 @@ countColumn
 number
 	^number! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 18:20:14'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/25/2024 18:26:14'!
 number: aNumber
 
 	TypeCheck check.
-	aNumber logAs: 'aNumber'.
 	number := aNumber.! !
 
 !Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 18:20:14'!
