@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 6:29:11 pm'!
+'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 7:13:44 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 117!
+!provides: 'ActiveRecord' 1 118!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -813,21 +813,18 @@ countColumn
 
 	^ 'count(*)' asSymbol! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 15:19:38'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/25/2024 18:56:55'!
 number
+	"Answer the number instance variable."
+
 	^number! !
 
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/25/2024 18:26:14'!
+!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/25/2024 18:56:59'!
 number: aNumber
+	"Set the number instance variable."
 
 	TypeCheck check.
 	number := aNumber.! !
-
-!Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 18:20:14'!
-takeDict: aDict
-
-	TypeCheck check.
-	'success' print.! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
 setUp	
