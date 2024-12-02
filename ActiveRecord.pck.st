@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6817] on 25 November 2024 at 7:13:44 pm'!
+'From Cuis7.1 [latest update: #6876] on 1 December 2024 at 7:05:36 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 118!
+!provides: 'ActiveRecord' 1 123!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -74,7 +74,7 @@ Object subclass: #DBAdapter
 	category: 'ActiveRecord'!
 !classDefinition: 'DBAdapter class' category: #ActiveRecord!
 DBAdapter class
-	instanceVariableNames: ''!
+	instanceVariableNames: 'connection logSQL tableColumns'!
 
 !classDefinition: #MySQLAdapter category: #ActiveRecord!
 DBAdapter subclass: #MySQLAdapter
@@ -334,44 +334,11 @@ update: assocSeq
 	queryString := stream contents.
 	^ self class execute: queryString.	! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 18:31:42'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 12/1/2024 14:19:08'!
 columns
 	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
 
-	columns ifNil: [
-		| queryString rs |
-		
-		columns := Dictionary new.
-
-		dbType caseOf: {
-			[#MySQL] -> [
-				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
-				rs := self execute: queryString.
-				rs asTable do: [:row |
-					columns at: (row at: #COLUMN_NAME) put: (row at: #DATA_TYPE)
-				].
-			].
-			[#Postgres] -> [
-				queryString​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}''' format: {self tableName}.
-				rs := self execute: queryString.
-				rs asTable do: [:row |
-					columns at: (row at: #column_name) put: (row at: #data_type)
-				].
-			].
-			[#SQLite]->[
-				"This query returns an empty ODBCResultSet for the corresponding table
-				which can be used to get information about its columns."
-				queryString​ := 'select * from {1} where 1=2' format: {self tableName}.
-
-				rs := self execute: queryString.
-				rs columns do: [:column |
-					columns at: column name put: column dataType
-				].
-			]
-		} otherwise: [self unsupportedDBType].
-	].
-
-	^ columns.
+	^ adapter columns: tableName.
 ! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 11/22/2024 19:48:53'!
@@ -432,7 +399,7 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 11/24/2024 18:20:14'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 12/1/2024 16:51:36'!
 establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
@@ -447,7 +414,7 @@ establishConnection: dsnSymbol dbType: dbtypeSymbol
 		[#SQLite] -> [SQLiteAdapter].
 	} otherwise: [self unsupportedDBType].
 
-	logSQL := false.
+	logSQL := true.
 	
 	conn ifNotNil: [
 		conn dsn = dsnSymbol ifFalse: [
@@ -458,13 +425,16 @@ establishConnection: dsnSymbol dbType: dbtypeSymbol
 
 	conn ifNil: [
 		conn := ODBCConnection dsn: dsnSymbol user: '' password: ''.
-	].! !
+	].
 
-!ARBase class methodsFor: 'creating' stamp: 'RMV 11/22/2024 18:55:19'!
+	adapter connection: conn.
+	adapter logSQL: logSQL.! !
+
+!ARBase class methodsFor: 'creating' stamp: 'RMV 12/1/2024 14:50:00'!
 create: assocColl
 	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
 	This assumes the table has an id column with type autoincrement integer."
-	| cols column dict id names queryString rs stream values |
+	| cols dict names queryString stream values |
 	
 	assocColl validateAssocSeq.
 	
@@ -498,26 +468,7 @@ create: assocColl
 	stream nextPutAll: ')'.
 	queryString := stream contents.
 	
-	dbType caseOf: {
-		[#MySQL] -> [
-			rs := self execute: queryString.
-			column := 'last_insert_id()'.
-			rs := self execute: 'select ', column.
-			id := rs next at: column asSymbol.
-		].
-		[#Postgres] -> [
-			rs := self execute: queryString, ' returning id'.
-			id := rs next at: #id.
-		].
-		[#SQLite] -> [
-			rs := self execute: queryString.
-			column := 'last_insert_rowid()'.
-			rs := self execute: 'select ', column.
-			id := rs next at: column asSymbol.
-		]
-	} otherwise: [self unsupportedDBType].
-	
-	^ id.
+	^ adapter insertAndGetId: queryString.
 	! !
 
 !ARBase class methodsFor: 'deleting' stamp: 'RMV 11/22/2024 18:32:08'!
@@ -554,6 +505,10 @@ all
 
 	rs := self execute: 'select * from ', self tableName.
 	^ rs asTable collect: [:row | self newRow: row].! !
+
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 12/1/2024 14:58:14'!
+falseValue
+	^ adapter falseValue! !
 
 !ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 18:20:14'!
 find: idNumber
@@ -624,6 +579,10 @@ last
 	row := rs next. "ODBCResultSet is a subclass of Stream."
 	^ self newRow: row.! !
 
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 12/1/2024 14:58:21'!
+trueValue
+	^ adapter trueValue! !
+
 !ARBase class methodsFor: 'updating' stamp: 'RMV 11/24/2024 15:06:47'!
 updateAll: assocSeq
 	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
@@ -657,14 +616,6 @@ execute: sqlString
 	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
 	conn ifNil: [ActiveRecordError signal: 'database connection (conn) not set']. 
 	^ conn execute: sqlString.! !
-
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:34'!
-falseValue
-	^ dbType caseOf: {
-		[#MySQL] -> [0].
-		[#Postgres] -> ['0']. "tests fail with 'f'"
-		[#SQLite] -> [0]
-	} otherwise: [self unsupportedDBType]! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:51:38'!
 newRow
@@ -738,14 +689,6 @@ sqlTypeDefault: typeString
 		['VarChar'] -> [''].
 	} otherwise: [nil].! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 05:41:22'!
-trueValue
-	^ dbType caseOf: {
-		[#MySQL] -> [1].
-		[#Postgres] -> ['1']. "tests fail with 't'"
-		[#SQLite] -> [1]
-	} otherwise: [self unsupportedDBType]! !
-
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:06'!
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
@@ -761,14 +704,14 @@ validateColumn: aSymbol
 		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/1/2024 14:36:20'!
 validateColumn: aSymbol value: anObject
 	| column template type valid |
 
 	TypeCheck check.
 
 	column := self validateColumn: aSymbol.
-	type := columns at: aSymbol.
+	type := adapter columns: tableName :: at: aSymbol.
 	
 	valid := type caseOf: {
 		[#boolean] -> [anObject = 0 or: [anObject = 1]].
@@ -789,11 +732,81 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 13:52:30'!
+columns
+	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
+	self subclassResponsibility! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:35:42'!
+columns: tableNameString
+	"Answer a Dictionary where keys are column names in a given table
+	and values are their SQL types, computed lazily."
+
+	self subclassResponsibility! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:30:52'!
+connection: anODBCConnection
+	connection := anODBCConnection! !
+
 !DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 20:33:10'!
 countColumn
 	"Answer name of column that holds the count of records in a table."
 
 	self subclassResponsibility.! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:31:12'!
+execute: sqlString
+	"Answer result set from executing a SQL query."
+	
+	TypeCheck check.
+
+	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
+	connection ifNil: [ActiveRecordError signal: 'database connection not set']. 
+	^ connection execute: sqlString.! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:52:35'!
+falseValue
+	"Answer value that represents false in this database."
+
+	self subclassResponsibility! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:46:58'!
+insertAndGetId: queryString
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	
+	self subclassResponsibility
+! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:34:23'!
+logSQL: aBoolean
+	logSQL := aBoolean! !
+
+!DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:54:31'!
+trueValue
+	"Answer value that represents true in this database."
+
+	self subclassResponsibility! !
+
+!MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:23:37'!
+columns: tableNameString
+	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
+
+	tableColumns ifNil: [ tableColumns := Dictionary new ].
+	
+	^ tableColumns at: tableNameString ifAbsentPut: [
+		| columnDict queryString rs template |
+
+		template​ := 'select column_name, data_type from information_schema.columns where table_name = ''{1}'''.
+		queryString​ := template format: { tableNameString}.
+		rs := self execute: queryString.
+
+		columnDict := Dictionary new.
+		rs asTable do: [:row |
+			columnDict at: (row at: #COLUMN_NAME) put: (row at: #DATA_TYPE)
+		].
+		columnDict.
+	].! !
 
 !MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:20'!
 countColumn
@@ -801,17 +814,131 @@ countColumn
 
 	^ 'count(*)' asSymbol! !
 
+!MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:52:54'!
+falseValue
+	"Answer value that represents false in this database."
+
+	^0! !
+
+!MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:48:04'!
+insertAndGetId: queryString
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	| column id rs |
+	
+	rs := self execute: queryString.
+	column := 'last_insert_id()'.
+	rs := self execute: 'select ', column.
+	id := rs next at: column asSymbol.
+	^id.
+! !
+
+!MySQLAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:54:45'!
+trueValue
+	"Answer value that represents false in this database."
+
+	^1! !
+
+!PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:23:53'!
+columns: tableNameString
+	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
+
+	tableColumns ifNil: [ tableColumns := Dictionary new ].
+	
+	^ tableColumns at: tableNameString ifAbsentPut: [
+		| columnDict queryString rs template |
+
+		template := 'select column_name, data_type from information_schema.columns where table_name = ''{1}'''.
+		queryString​ := template format: {tableNameString}.
+		rs := self execute: queryString.
+
+		columnDict := Dictionary new.
+		rs asTable do: [:row |
+			columnDict at: (row at: #column_name) put: (row at: #data_type)
+		].
+		columnDict.
+	].! !
+
 !PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:46'!
 countColumn
 	"Answer name of column that holds the count of records in a table."
 
 	^ #count! !
 
+!PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:53:17'!
+falseValue
+	"Answer value that represents false in this database."
+
+	^'0' "tests fail with 'f'"! !
+
+!PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:48:30'!
+insertAndGetId: queryString
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	| id rs |
+	
+	rs := self execute: queryString, ' returning id'.
+	id := rs next at: #id.
+	^id.
+! !
+
+!PostgresAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:55:06'!
+trueValue
+	"Answer value that represents false in this database."
+
+	^'1' "tests fail with 't'"! !
+
+!SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:24:03'!
+columns: tableNameString
+	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
+
+	tableColumns ifNil: [ tableColumns := Dictionary new ].
+	
+	^ tableColumns at: tableNameString ifAbsentPut: [
+		| columnDict queryString rs |
+	
+		"This query returns an empty ODBCResultSet for the corresponding table
+		which can be used to get information about its columns."
+		queryString​ := 'select * from {1} where 1=2' format: {tableNameString}.
+		rs := self execute: queryString.
+
+		columnDict := Dictionary new.
+		rs columns do: [:column |
+			columnDict at: column name put: column dataType
+		].
+		columnDict.
+	].! !
+
 !SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 19:31:57'!
 countColumn
 	"Answer name of column that holds the count of records in a table."
 
 	^ 'count(*)' asSymbol! !
+
+!SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:53:26'!
+falseValue
+	"Answer value that represents false in this database."
+
+	^0! !
+
+!SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:49:07'!
+insertAndGetId: queryString
+	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
+	This assumes the table has an id column with type autoincrement integer."
+	| column id rs |
+	
+	rs := self execute: queryString.
+	column := 'last_insert_rowid()'.
+	rs := self execute: 'select ', column.
+	id := rs next at: column asSymbol.
+	^id.
+! !
+
+!SQLiteAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 14:55:14'!
+trueValue
+	"Answer value that represents false in this database."
+
+	^1! !
 
 !Demo methodsFor: 'as yet unclassified' stamp: 'RMV 11/25/2024 18:56:55'!
 number
@@ -863,6 +990,11 @@ testColumnGetter
 testColumns
 	self subclassResponsibility! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:36:33'!
+testConnection
+
+	self assert: Todo connection ~= nil.! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:08'!
 testCount
 	"The class method #count is tested in the setup method."! !
@@ -911,6 +1043,32 @@ testDestroyBy
 testEstablishConnection
 	"The class method #establishConnect is tested in the setup method."! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:38:44'!
+testExecute
+	"The class method #execute: is tested in the setup method."! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:40:00'!
+testFalseValue
+	self subclassResponsibility! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:05:25'!
+testFind
+	| description id todo todos |
+
+
+	"Find the todo with a specific description."
+	description := 'buy milk'.
+	todos := Todo findBy: #description->description.
+	todo := todos first.
+	
+	"Find the same todo using its id."
+	id := todo id.
+	todo := Todo find: id.
+
+	self assert: todo description equals: 'buy milk'.
+	self assert: todo completed equals: Todo falseValue.
+	! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
 testFirst
 	| todo |
@@ -952,8 +1110,9 @@ testUpdateColumn
 isAbstract
 	^true! !
 
-!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/24/2024 13:03:18'!
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:42:51'!
 setUp
+
 	dsn := #MySQLTodosDSN.
 	dbType := #MySQL.
 	super setUp.! !
@@ -971,6 +1130,16 @@ testColumns
 testDbType
 
 	self assert: (Todo dbType) equals: 'MySQL'.! !
+
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:42:27'!
+testFalseValue
+
+	self assert: Todo falseValue equals: 0! !
+
+!MySQLTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:43:17'!
+testTrueValue
+
+	self assert: Todo trueValue equals: 1! !
 
 !MySQLTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:50'!
 isAbstract
@@ -996,6 +1165,16 @@ testDbType
 
 	self assert: (Todo dbType) equals: 'Postgres'.! !
 
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:44:15'!
+testFalseValue
+
+	self assert: Todo falseValue equals: '0'! !
+
+!PostgresTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:44:30'!
+testTrueValue
+
+	self assert: Todo trueValue equals: '1'! !
+
 !PostgresTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:55:55'!
 isAbstract
 	^false! !
@@ -1019,6 +1198,16 @@ testColumns
 testDbType
 
 	self assert: (Todo dbType) equals: 'SQLite'.! !
+
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:44:02'!
+testFalseValue
+
+	self assert: Todo falseValue equals: 0! !
+
+!SQLiteTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:43:51'!
+testTrueValue
+
+	self assert: Todo trueValue equals: 1! !
 
 !SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
 isAbstract
