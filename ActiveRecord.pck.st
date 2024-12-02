@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 1 December 2024 at 7:05:36 pm'!
+'From Cuis7.1 [latest update: #6876] on 1 December 2024 at 7:13:15 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 123!
+!provides: 'ActiveRecord' 1 124!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -732,6 +732,10 @@ validateColumn: aSymbol value: anObject
 	].
 ! !
 
+!Todo methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:12:55'!
+isCompleted
+	^ self completed = self class trueValue! !
+
 !DBAdapter class methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 13:52:30'!
 columns
 	"Answer a Dictionary where keys are column names and values are their SQL types, computed lazily."
@@ -1051,7 +1055,7 @@ testExecute
 testFalseValue
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:05:25'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:12:02'!
 testFind
 	| description id todo todos |
 
@@ -1066,7 +1070,7 @@ testFind
 	todo := Todo find: id.
 
 	self assert: todo description equals: 'buy milk'.
-	self assert: todo completed equals: Todo falseValue.
+	self assert: todo isCompleted = false.
 	! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
