@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 1 December 2024 at 7:13:15 pm'!
+'From Cuis7.1 [latest update: #6876] on 2 December 2024 at 8:53:46 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 124!
+!provides: 'ActiveRecord' 1 132!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -128,7 +128,7 @@ ActiveRecordError class
 
 !classDefinition: #DBAbstractTests category: #ActiveRecord!
 TestCase subclass: #DBAbstractTests
-	instanceVariableNames: 'descriptions dsn dbType'
+	instanceVariableNames: 'descriptions dsn dbType falseValue'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
@@ -399,7 +399,7 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 12/1/2024 16:51:36'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 12/2/2024 10:17:48'!
 establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
@@ -414,7 +414,7 @@ establishConnection: dsnSymbol dbType: dbtypeSymbol
 		[#SQLite] -> [SQLiteAdapter].
 	} otherwise: [self unsupportedDBType].
 
-	logSQL := true.
+	logSQL := false.
 	
 	conn ifNotNil: [
 		conn dsn = dsnSymbol ifFalse: [
@@ -536,7 +536,7 @@ findBy: anAssociation
 	rs := self execute: queryString.
 	^ rs asTable collect: [:row | self newRow: row].! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/24/2024 15:00:50'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 12/2/2024 10:31:33'!
 findWhere: conditionSeq
 	"Answer new instances of this class that represent matching table rows."
 	| queryString rs size stream |
@@ -551,7 +551,9 @@ findWhere: conditionSeq
 	stream nextPutAll: self tableName.
 	stream nextPutAll: ' where '.
 	conditionSeq withIndexDo: [:condition :index |
-		stream nextPutAll: condition.
+		stream nextPutAll: condition key.
+		stream nextPut: $=.
+		stream nextPutAll: (Todo sqlString: condition value).
 		index < size ifTrue: [ stream nextPutAll: ' and ' ].
 	].
 	queryString := stream contents.
@@ -583,9 +585,10 @@ last
 trueValue
 	^ adapter trueValue! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 11/24/2024 15:06:47'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 12/2/2024 20:40:12'!
 updateAll: assocSeq
-	"Update all rows in the corresponding table and answer an ODBCResultSet describing it."
+	"Update all rows in the corresponding table and answer a collection of
+	instances of this class that represent all the rows in the table."
 	| queryString stream |
 
 	assocSeq validateAssocSeq.
@@ -604,8 +607,11 @@ updateAll: assocSeq
 			stream nextPutAll: ', '.
 		].
 	
-	queryString := stream contents.	
-	^ self execute: queryString.	! !
+	queryString := stream contents.
+	queryString logAs: 'queryString'.	
+	self execute: queryString.
+	"TODO: Do you really want this method to return a collection of objects?"
+	^ self all.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 execute: sqlString
@@ -616,36 +622,6 @@ execute: sqlString
 	logSQL ifTrue: [ 'executing SQL: ', sqlString :: print ].
 	conn ifNil: [ActiveRecordError signal: 'database connection (conn) not set']. 
 	^ conn execute: sqlString.! !
-
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/22/2024 18:51:38'!
-newRow
-	"Create a new row in the corresponding table and answer an ODBCResultSet containing it.
-	This assumes the table has an id column with type autoincrement integer."
-	| names queryString stream values |
-	
-	"Get all the column names except the id column."
-	names := columns keys reject: [:column | column name = #id].	
-	
-	"Get all the default column values."
-	values := columns values collect: [:dataType | self sqlTypeDefault: dataType].
-	
-	stream := WriteStream on: (String new: 200).
-	stream nextPutAll: 'insert into '.
-	stream nextPutAll: self tableName.
-	stream nextPutAll: ' ('.
-	names
-		do: [:column | stream nextPutAll: column]
-		separatedBy: [stream nextPutAll: ', ' ].
-	stream nextPutAll: ') values ('.
-	values
-		do: [:value | stream nextPutAll: value asString]
-		separatedBy: [stream nextPutAll: ', ' ].
-	stream nextPutAll: ')'.
-	queryString := stream contents.
-	
-	"TODO: Why does this return an ODBCResultSet with rowCount 1, but next returns nil?"
-	^ self execute: queryString.
-	! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 newRow: anODBCRow
@@ -693,7 +669,7 @@ sqlTypeDefault: typeString
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/2/2024 20:53:09'!
 validateColumn: aSymbol
 	"Raises an error if aSymbol is not the name of a column in the correponding table.
 	Otherwise returns the ODBCColumn."
@@ -701,7 +677,10 @@ validateColumn: aSymbol
 	TypeCheck check.
 
 	^ self columns at: aSymbol ifAbsent: [
-		ActiveRecordError signal: ('table {1} does not have column {2}' format: {self tableName. aSymbol}).
+		| message |
+		message := 'table {1} does not have column #{2}' format: {self tableName. aSymbol}.
+		message logAs: 'message'.
+		ActiveRecordError signal: message.
 	]! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 12/1/2024 14:36:20'!
@@ -983,6 +962,18 @@ tearDown
 	Todo disconnect.
 	! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:20:15'!
+testAll
+	| todos |
+		
+	todos := Todo all.
+	self assert: todos size equals: 3.
+	
+	todos withIndexDo: [:todo :index |
+		self assert: todo description equals: (descriptions at: index).
+	].
+! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
@@ -1055,10 +1046,9 @@ testExecute
 testFalseValue
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:12:02'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:26:14'!
 testFind
 	| description id todo todos |
-
 
 	"Find the todo with a specific description."
 	description := 'buy milk'.
@@ -1069,7 +1059,28 @@ testFind
 	id := todo id.
 	todo := Todo find: id.
 
-	self assert: todo description equals: 'buy milk'.
+	self assert: todo description equals: description.
+	self assert: todo isCompleted = false.
+	! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:24:09'!
+testFindBy
+	"The class method #findBy is tested in the testFind method."! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:29:08'!
+testFindWhere
+	| description falseV todo todos |
+
+	falseV := Todo falseValue.
+	todos := Todo findWhere: {#completed->falseV}.
+	self assert: todos size equals: 3.
+
+	description := 'buy milk'.
+	todos := Todo findWhere: {#description->description. #completed->falseV}.
+	self assert: todos size equals: 1.
+	
+	todo := todos first.
+	self assert: todo description equals: description.
 	self assert: todo isCompleted = false.
 	! !
 
@@ -1087,17 +1098,68 @@ testLast
 	todo := Todo last.
 	self assert: todo description equals: descriptions last.! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:36:14'!
+testNewRow
+	"The newRow: class method is tested in many other tests including
+	testAll, testFind, testFindBy, testFindWhere, testFirst, and testLast."! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:40:53'!
+testQuoteIfString
+	| number text |
+	
+	number := 123.	
+	self assert: (Todo quoteIfString: number) equals: number.
+	
+	text := 'some text'.
+	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:46:53'!
 testReset
 	"The class method #reset is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/17/2024 08:58:55'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:43:07'!
+testSQLString
+	| number text |
+	
+	number := 123.	
+	self assert: (Todo sqlString: number) equals: number asString.
+	
+	text := 'some text'.
+	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:09:10'!
+testSQLTypeDefault
+	"The class method #sqlTypeDefault: doesn't really need a unit test."! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:11:19'!
 testTableName
 	
-	self assert: (Todo tableName) equals: 'todos'! !
+	self assert: (Dog tableName) equals: 'dogs'.
+	self assert: (GearShiftKnob tableName) equals: 'gear_shift_knobs'.
+	self assert: (Person tableName) equals: 'people'.
+	self assert: (Todo tableName) equals: 'todos'.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:54'!
-testUpdateColumn
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:11:58'!
+testTrueValue
+	self subclassResponsibility! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:50:37'!
+testUnsupportedDBType
+
+	self
+		should: [Todo unsupportedDBType]
+		raise: ActiveRecordError
+		withExceptionDo: [:exception |
+			self assert: (exception messageText beginsWith: 'unsupported database type ')
+		].
+	
+	self
+		should: [Todo unsupportedDBType]
+		raise: ActiveRecordError
+		"withMessageText: ['unsupported database type ', Todo dbType]."! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:29:14'!
+testUpdate
 	| completed todo todos |
 	
 	todos := Todo findBy: #description -> 'buy milk'.
@@ -1109,6 +1171,28 @@ testUpdateColumn
 
 	todo := Todo find: todo id.
 	self assert: todo completed equals: completed.! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:38:44'!
+testUpdateAll
+	| todos |
+	
+	todos := Todo updateAll: {#completed->Todo trueValue}.
+	self assert: todos size equals: 3.
+	todos do: [:todo | self assert: todo completed equals: Todo trueValue].! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:53:29'!
+testValidateColumn
+	| message |
+	
+	Todo validateColumn: #id.
+	Todo validateColumn: #description.
+	Todo validateColumn: #completed.
+
+	message := 'table todos does not have column #wrong'.
+	self
+		should: [Todo validateColumn: #wrong]
+		raise: ActiveRecordError
+		withMessageText: [message].! !
 
 !DBAbstractTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:11'!
 isAbstract
