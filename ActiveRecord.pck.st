@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:02:18 am'!
+'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:17:01 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 144!
+!provides: 'ActiveRecord' 1 145!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -124,6 +124,16 @@ Error subclass: #ActiveRecordError
 	category: 'ActiveRecord'!
 !classDefinition: 'ActiveRecordError class' category: #ActiveRecord!
 ActiveRecordError class
+	instanceVariableNames: ''!
+
+!classDefinition: #ARBaseTests category: #ActiveRecord!
+TestCase subclass: #ARBaseTests
+	instanceVariableNames: ''
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'ActiveRecord'!
+!classDefinition: 'ARBaseTests class' category: #ActiveRecord!
+ARBaseTests class
 	instanceVariableNames: ''!
 
 !classDefinition: #DBAbstractTests category: #ActiveRecord!
@@ -946,7 +956,50 @@ number: aNumber
 	TypeCheck check.
 	number := aNumber.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:00:16'!
+!ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:14:10'!
+testQuoteIfString
+	| number text |
+	
+	number := 123.	
+	self assert: (Todo quoteIfString: number) equals: number.
+	
+	text := 'some text'.
+	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
+
+!ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:12:35'!
+testSQLString
+	| number text |
+	
+	number := 123.	
+	self assert: (Todo sqlString: number) equals: number asString.
+	
+	text := 'some text'.
+	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
+
+!ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:10:14'!
+testTableName
+	
+	self assert: (Dog tableName) equals: 'dogs'.
+	self assert: (GearShiftKnob tableName) equals: 'gear_shift_knobs'.
+	self assert: (Person tableName) equals: 'people'.
+	self assert: (Todo tableName) equals: 'todos'.! !
+
+!ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:14:39'!
+testUnsupportedDBType
+
+	self
+		should: [Todo unsupportedDBType]
+		raise: ActiveRecordError
+		withExceptionDo: [:exception |
+			self assert: (exception messageText beginsWith: 'unsupported database type ')
+		].
+	
+	self
+		should: [Todo unsupportedDBType]
+		raise: ActiveRecordError
+		"withMessageText: ['unsupported database type ', Todo dbType]."! !
+
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:00:16'!
 setUp	
 
 	dsn ifNil: [Error signal: 'dsn not set'].
@@ -971,13 +1024,13 @@ setUp
 	].
 	self assert: Todo count equals: descriptions size.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/16/2024 19:03:46'!
 tearDown
 
 	Todo disconnect.
 	! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:35:16'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 20:35:16'!
 testAccessors
 	| id newCompleted newDescription todo |
 
@@ -993,7 +1046,7 @@ testAccessors
 	self assert: todo description equals: newDescription.
 	self assert: todo completed equals: newCompleted.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:20:15'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/2/2024 10:20:15'!
 testAll
 	| todos |
 		
@@ -1005,7 +1058,7 @@ testAll
 	].
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:59:58'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 18:59:58'!
 testChanged
 	| todo |
 
@@ -1016,35 +1069,35 @@ testChanged
 		withMessageText: 'table todos does not have column changed'.
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 19:19:09'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/18/2024 19:19:09'!
 testColumns
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:36:33'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/1/2024 16:36:33'!
 testConnection
 
 	self assert: Todo connection ~= nil.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:08'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:48:08'!
 testCount
 	"The class method #count is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:40'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:48:40'!
 testCreate
 	"The class method #create: is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:48:54'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:48:54'!
 testDbType
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:55:27'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:55:27'!
 testDeleteRowByColumnValue
 	| todos |
 	
@@ -1052,7 +1105,7 @@ testDeleteRowByColumnValue
 	todos := Todo all.
 	self assert: todos size equals: 2.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:50'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/18/2024 05:39:50'!
 testDeleteRowForInstance
 	| id todo |
 
@@ -1062,7 +1115,7 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:37:09'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 18:37:09'!
 testDestroy
 	| id todo |
 
@@ -1073,11 +1126,11 @@ testDestroy
 	self assert: todo = nil.
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:44'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:47:44'!
 testDestroyAll
 	"The class method #destroyAll is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:49:55'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/22/2024 18:49:55'!
 testDestroyBy
 	| rs |
 
@@ -1087,7 +1140,7 @@ testDestroyBy
 	self assert: (Todo count) equals: 2.
 	! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 19:04:07'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 19:04:07'!
 testDoesNotUnderstand
 	| message todo |
 
@@ -1099,19 +1152,19 @@ testDoesNotUnderstand
 		withMessageText: 'table todos does not have column someName'.
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:16'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:47:16'!
 testEstablishConnection
 	"The class method #establishConnect is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:38:44'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/1/2024 16:38:44'!
 testExecute
 	"The class method #execute: is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 16:40:00'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/1/2024 16:40:00'!
 testFalseValue
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:01:01'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:01:01'!
 testFind
 	| description id todo todos |
 
@@ -1128,11 +1181,11 @@ testFind
 	self assert: todo isCompleted.
 	! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:24:09'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/2/2024 10:24:09'!
 testFindBy
 	"The class method #findBy is tested in the testFind method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:02:04'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:02:04'!
 testFindWhere
 	| description todo todos |
 
@@ -1148,14 +1201,14 @@ testFindWhere
 	self assert: todo isCompleted.
 	! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/18/2024 20:23:06'!
 testFirst
 	| todo |
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:54:42'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 18:54:42'!
 testInspect
 	| completed expected todo |
 
@@ -1165,33 +1218,23 @@ testInspect
 	self assert: todo inspect equals: expected.
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:24:07'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/18/2024 20:24:07'!
 testLast
 	| todo |
 		
 	todo := Todo last.
 	self assert: todo description equals: descriptions last.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:36:14'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/2/2024 10:36:14'!
 testNewRow
 	"The newRow: class method is tested in many other tests including
 	testAll, testFind, testFindBy, testFindWhere, testFirst, and testLast."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:40:53'!
-testQuoteIfString
-	| number text |
-	
-	number := 123.	
-	self assert: (Todo quoteIfString: number) equals: number.
-	
-	text := 'some text'.
-	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
-
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:46:53'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/21/2024 18:46:53'!
 testReset
 	"The class method #reset is tested in the setup method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 19:40:12'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 19:40:12'!
 testRow
 	| newRow todo |
 
@@ -1200,48 +1243,15 @@ testRow
 	todo row: newRow.
 	self assert: todo row equals: newRow.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:43:07'!
-testSQLString
-	| number text |
-	
-	number := 123.	
-	self assert: (Todo sqlString: number) equals: number asString.
-	
-	text := 'some text'.
-	self assert: (Todo quoteIfString: text) equals: ('''', text, '''').! !
-
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:09:10'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/2/2024 20:09:10'!
 testSQLTypeDefault
 	"The class method #sqlTypeDefault: doesn't really need a unit test."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:11:19'!
-testTableName
-	
-	self assert: (Dog tableName) equals: 'dogs'.
-	self assert: (GearShiftKnob tableName) equals: 'gear_shift_knobs'.
-	self assert: (Person tableName) equals: 'people'.
-	self assert: (Todo tableName) equals: 'todos'.! !
-
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:11:58'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/2/2024 20:11:58'!
 testTrueValue
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:50:37'!
-testUnsupportedDBType
-
-	self
-		should: [Todo unsupportedDBType]
-		raise: ActiveRecordError
-		withExceptionDo: [:exception |
-			self assert: (exception messageText beginsWith: 'unsupported database type ')
-		].
-	
-	self
-		should: [Todo unsupportedDBType]
-		raise: ActiveRecordError
-		"withMessageText: ['unsupported database type ', Todo dbType]."! !
-
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:22:32'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 20:22:32'!
 testUpdate
 	| id newCompleted newDescription todo |
 
@@ -1257,7 +1267,7 @@ testUpdate
 	self assert: todo completed equals: newCompleted.
 ! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:37:25'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 20:37:25'!
 testUpdateAll
 	| todos |
 	
@@ -1266,7 +1276,7 @@ testUpdateAll
 	self assert: todos size equals: 3.
 	todos do: [:todo | self assert: todo completed equals: Todo trueValue].! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 06:05:21'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 06:05:21'!
 testValidateColumn
 	| message |
 	
@@ -1280,7 +1290,7 @@ testValidateColumn
 		raise: ActiveRecordError
 		withMessageText: [message].! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 06:25:03'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 06:25:03'!
 testValidateColumnValue
 	| message type |
 
