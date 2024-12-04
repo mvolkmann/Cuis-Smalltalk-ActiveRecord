@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:17:01 am'!
+'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:57:03 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 145!
+!provides: 'ActiveRecord' 1 146!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -955,6 +955,24 @@ number: aNumber
 
 	TypeCheck check.
 	number := aNumber.! !
+
+!Demo class methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:53:58'!
+average: numberArray
+	| cache cacheKey valueKey |
+	
+	"Smalltalk is a SystemDictionary which is an IdentityDictionary.
+	That is way cacheKey must be a Symbol."
+	cacheKey := ('cache-', thisContext name) asSymbol.
+
+	cache := Smalltalk at: cacheKey ifAbsentPut: [ IdentityDictionary new ].
+	valueKey := thisContext name, thisContext arguments asString :: asSymbol.
+
+	^ cache at: valueKey ifAbsentPut: [
+		| sum |
+		'computing average' print.
+		sum := numberArray fold: [:acc :n | acc + n].
+		sum / numberArray size.
+	].! !
 
 !ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:14:10'!
 testQuoteIfString
