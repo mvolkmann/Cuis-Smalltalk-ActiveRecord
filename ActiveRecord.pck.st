@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 2 December 2024 at 8:53:46 pm'!
+'From Cuis7.1 [latest update: #6876] on 3 December 2024 at 7:06:32 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 132!
+!provides: 'ActiveRecord' 1 138!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -243,7 +243,7 @@ row: anODBCRow
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/24/2024 15:16:28'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 12/3/2024 19:06:17'!
 doesNotUnderstand: aMessage
 	"Handle requests to get or set an instance variable
 	and update the corresponding database row."
@@ -280,31 +280,29 @@ doesNotUnderstand: aMessage
 		].
 ! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 11/17/2024 08:16:45'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 12/3/2024 18:53:01'!
 inspect
-	"Answer string description of corresponding database record."
-	| stream |
+	"Answer string description of corresponding database record.
+	The column names are output in alphabetical order."
+	| columns keys stream |
 		
 	stream := WriteStream on: (String new: 300).
-	stream nextPutAll: '#<'.
 	stream nextPutAll: self class name.
 	stream nextPut: Character space.
 	
-	self class columns
-		associationsDo: [:assoc |
-			| name value |
-			name := assoc key.
-			value := assoc value.
-			value := self perform: name.
-			stream nextPutAll: name.
-			stream nextPutAll: ': '.
-			stream nextPutAll: (self class sqlString: value).
-		]
-		separatedBy: [
-			stream nextPutAll: ', '.
-		].
+	columns := self class columns.
+	keys := columns keys sort.
+	
+	keys do: [ :key |
+		| value |
+		value := self perform: key.
+		stream nextPutAll: key.
+		stream nextPutAll: ': '.
+		stream nextPutAll: (self class sqlString: value).
+	] separatedBy: [
+		stream nextPutAll: ', '.
+	].
 
-	stream nextPutAll: '>'.
 	^ stream contents.! !
 
 !ARBase methodsFor: 'updating' stamp: 'RMV 11/24/2024 12:56:35'!
@@ -585,7 +583,7 @@ last
 trueValue
 	^ adapter trueValue! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 12/2/2024 20:40:12'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 12/3/2024 06:01:51'!
 updateAll: assocSeq
 	"Update all rows in the corresponding table and answer a collection of
 	instances of this class that represent all the rows in the table."
@@ -608,7 +606,6 @@ updateAll: assocSeq
 		].
 	
 	queryString := stream contents.
-	queryString logAs: 'queryString'.	
 	self execute: queryString.
 	"TODO: Do you really want this method to return a collection of objects?"
 	^ self all.! !
@@ -652,50 +649,55 @@ sqlString: value
 		ifTrue: ['''{1}''' format: {value}]
 		ifFalse: [value asString]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/3/2024 06:19:26'!
 sqlTypeDefault: typeString
 
 	TypeCheck check.
 
 	^​ typeString caseOf: {
-		['boolean'] -> ['f'].
-		['Double'] -> [0].
-		['Integer'] -> [0].
-		['tinyint'] -> [0].
-		['VarChar'] -> [''].
+		[#boolean] -> ['f'].
+		[#Double] -> [0].
+		[#int] -> [0].
+		[#Integer] -> [0].
+		[#integer] -> [0].
+		[#LongVarChar] -> [''].
+		[#text] -> [''].
+		[#tinyint] -> [0].
+		[#VarChar] -> [''].
 	} otherwise: [nil].! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/18/2024 20:31:06'!
 unsupportedDBType
 	ActiveRecordError signal: 'unsupported database type ', dbType! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 12/2/2024 20:53:09'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/3/2024 06:05:26'!
 validateColumn: aSymbol
-	"Raises an error if aSymbol is not the name of a column in the correponding table.
-	Otherwise returns the ODBCColumn."
+	"Raises an error if aSymbol is not the name of a column in the corresponding table.
+	Otherwise returns its type."
 
 	TypeCheck check.
 
 	^ self columns at: aSymbol ifAbsent: [
 		| message |
-		message := 'table {1} does not have column #{2}' format: {self tableName. aSymbol}.
-		message logAs: 'message'.
+		message := 'table {1} does not have column {2}' format: {self tableName. aSymbol}.
 		ActiveRecordError signal: message.
 	]! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 12/1/2024 14:36:20'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/3/2024 06:26:13'!
 validateColumn: aSymbol value: anObject
-	| column template type valid |
+	"Raises an error if aSymbol is not the name of a column in the corresponding table.
+	Otherwise returns its type."
+	| message template type valid |
 
 	TypeCheck check.
 
-	column := self validateColumn: aSymbol.
-	type := adapter columns: tableName :: at: aSymbol.
-	
+	type := self validateColumn: aSymbol.	
 	valid := type caseOf: {
-		[#boolean] -> [anObject = 0 or: [anObject = 1]].
+		[#boolean] -> [anObject = self falseValue or: [anObject = self trueValue]].
 		[#Double] -> [anObject isFloat or: [anObject isInteger]].
+		[#int] -> [anObject isInteger].
 		[#Integer] -> [anObject isInteger].
+		[#integer] -> [anObject isInteger].
 		[#LongVarChar] -> [anObject isString].
 		[#text] -> [anObject isString].
 		[#tinyint] -> [anObject isInteger].
@@ -707,9 +709,11 @@ validateColumn: aSymbol value: anObject
 
 	valid ifFalse: [
 		template := '{1} is invalid value for table {2} column {3} type {4}'.
-		ActiveRecordError signal: (template format: {anObject. self tableName. aSymbol. type}).
+		message := template format: {anObject. self tableName. aSymbol. type}.
+		ActiveRecordError signal: message.
 	].
-! !
+
+	^type.! !
 
 !Todo methodsFor: 'as yet unclassified' stamp: 'RMV 12/1/2024 19:12:55'!
 isCompleted
@@ -974,6 +978,17 @@ testAll
 	].
 ! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:59:58'!
+testChanged
+	| todo |
+
+	todo := Todo first.
+	self
+		should: [todo changed: 1]
+		raise: ActiveRecordError
+		withMessageText: 'table todos does not have column changed'.
+! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 05:39:34'!
 testColumnGetter
 	| todo |
@@ -1020,6 +1035,17 @@ testDeleteRowForInstance
 	todo destroy.
 	self assert: (Todo find: id) = nil.! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:37:09'!
+testDestroy
+	| id todo |
+
+	todo := Todo first.
+	id := todo id.
+	todo destroy.
+	todo := Todo find: id.
+	self assert: todo = nil.
+! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:44'!
 testDestroyAll
 	"The class method #destroyAll is tested in the setup method."! !
@@ -1033,6 +1059,18 @@ testDestroyBy
 	self assert: rs size equals: 0.
 	self assert: (Todo count) equals: 2.
 	! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 19:04:07'!
+testDoesNotUnderstand
+	| message todo |
+
+	message := 'someName'.
+	todo := Todo first.
+	self
+		should: [todo doesNotUnderstand: message]
+		raise: ActiveRecordError
+		withMessageText: 'table todos does not have column someName'.
+! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/21/2024 18:47:16'!
 testEstablishConnection
@@ -1090,6 +1128,16 @@ testFirst
 		
 	todo := Todo first.
 	self assert: todo description equals: descriptions first.! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 18:54:42'!
+testInspect
+	| completed expected todo |
+
+	todo := Todo first.
+	completed := Todo sqlString: todo completed.
+	expected := 'Todo completed: {1}, description: ''{2}'', id: {3}' format: {completed. todo description. todo id}.
+	self assert: todo inspect equals: expected.
+! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:24:07'!
 testLast
@@ -1180,7 +1228,7 @@ testUpdateAll
 	self assert: todos size equals: 3.
 	todos do: [:todo | self assert: todo completed equals: Todo trueValue].! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:53:29'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 06:05:21'!
 testValidateColumn
 	| message |
 	
@@ -1188,9 +1236,24 @@ testValidateColumn
 	Todo validateColumn: #description.
 	Todo validateColumn: #completed.
 
-	message := 'table todos does not have column #wrong'.
+	message := 'table todos does not have column wrong'.
 	self
 		should: [Todo validateColumn: #wrong]
+		raise: ActiveRecordError
+		withMessageText: [message].! !
+
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 06:25:03'!
+testValidateColumnValue
+	| message type |
+
+	Todo validateColumn: #id value: 19.
+	type := Todo validateColumn: #description value: 'some description'.
+	Todo validateColumn: #completed value: Todo trueValue.
+	Todo validateColumn: #completed value: Todo falseValue.
+
+	message := '19 is invalid value for table todos column description type ', type.
+	self
+		should: [Todo validateColumn: #description value: 19]
 		raise: ActiveRecordError
 		withMessageText: [message].! !
 
