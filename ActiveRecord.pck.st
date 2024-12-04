@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 3 December 2024 at 7:06:32 pm'!
+'From Cuis7.1 [latest update: #6876] on 3 December 2024 at 8:38:06 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 138!
+!provides: 'ActiveRecord' 1 143!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -237,13 +237,17 @@ changed: zeroOrOne
 	message := Message selector: #changed argument: zeroOrOne. 
 	^ self doesNotUnderstand: message! !
 
+!ARBase methodsFor: 'private' stamp: 'RMV 12/3/2024 19:40:07'!
+row
+	^row! !
+
 !ARBase methodsFor: 'private' stamp: 'RMV 11/6/2024 19:13:19'!
 row: anODBCRow
 	"Set the row instance variable of the current object to a given ODBCRow."
 
 	row := anODBCRow! !
 
-!ARBase methodsFor: 'accessing' stamp: 'RMV 12/3/2024 19:06:17'!
+!ARBase methodsFor: 'accessing' stamp: 'RMV 12/3/2024 20:34:59'!
 doesNotUnderstand: aMessage
 	"Handle requests to get or set an instance variable
 	and update the corresponding database row."
@@ -255,11 +259,11 @@ doesNotUnderstand: aMessage
 	keywords size > 1 ifTrue: [^super doesNotUnderstand: aMessage].
 	
 	keyword := keywords first asSymbol.
-	"TODO: This will not be called if the keyword matches an existing selected (ex. changed:)."
+	"TODO: This will not be called if the keyword matches an existing selector (ex. changed:)."
 	keyword endsWith: ':' ::
 		ifTrue: [
 			"Simulate setting an instance variable."
-			| arg instVarName query tableName |
+			| arg instVarName queryString tableName template |
 
 			instVarName := keyword allButLast asSymbol.
 			arg := aMessage arguments first.
@@ -268,9 +272,10 @@ doesNotUnderstand: aMessage
 			
 			"Update the database row. Later this will be done when a transaction is commited."
 			tableName := self class tableName.
+			template := 'update {1} set {2}={3} where id={4}'.
 			arg := self class sqlString: arg.
-			query := 'update {1} set {2}="{3}" where id={4}' format: {tableName. instVarName. arg. self id}.
-			self class execute: query.
+			queryString := template format: {tableName. instVarName. arg. self id}.
+			self class execute: queryString.
 		]
 		ifFalse: [
 			self class validateColumn: keyword.
@@ -305,9 +310,9 @@ inspect
 
 	^ stream contents.! !
 
-!ARBase methodsFor: 'updating' stamp: 'RMV 11/24/2024 12:56:35'!
+!ARBase methodsFor: 'updating' stamp: 'RMV 12/3/2024 20:24:42'!
 update: assocSeq
-	"Update an existing row in the corresponding table and answer an ODBCResultSet describing it."
+	"Update an existing row in the corresponding table and the current object."
 	| queryString stream |
 	
 	assocSeq validateAssocSeq.
@@ -318,19 +323,23 @@ update: assocSeq
 	stream nextPutAll: ' set '.
 	assocSeq
 		do: [:assoc |
-			stream nextPutAll: assoc key.
-			stream nextPutAll: ' = '.
-			stream nextPutAll: (self class sqlString: (assoc value)).
+			| key value |
+			key := assoc key.
+			value := assoc value.
+			stream nextPutAll: key.
+			stream nextPutAll: '='.
+			stream nextPutAll: (self class sqlString: value).
+			self row at: key put: value.
 		]
 		separatedBy: [
 			stream nextPutAll: ', '.
 		].
 	
-	stream nextPutAll: ' where id = '.
+	stream nextPutAll: ' where id='.
 	stream nextPutAll: self id asString.
 	
 	queryString := stream contents.
-	^ self class execute: queryString.	! !
+	self class execute: queryString.	! !
 
 !ARBase class methodsFor: 'accessing' stamp: 'RMV 12/1/2024 14:19:08'!
 columns
@@ -583,10 +592,9 @@ last
 trueValue
 	^ adapter trueValue! !
 
-!ARBase class methodsFor: 'updating' stamp: 'RMV 12/3/2024 06:01:51'!
+!ARBase class methodsFor: 'updating' stamp: 'RMV 12/3/2024 20:37:48'!
 updateAll: assocSeq
-	"Update all rows in the corresponding table and answer a collection of
-	instances of this class that represent all the rows in the table."
+	"Update all rows in the corresponding table."
 	| queryString stream |
 
 	assocSeq validateAssocSeq.
@@ -606,9 +614,7 @@ updateAll: assocSeq
 		].
 	
 	queryString := stream contents.
-	self execute: queryString.
-	"TODO: Do you really want this method to return a collection of objects?"
-	^ self all.! !
+	self execute: queryString.! !
 
 !ARBase class methodsFor: 'private' stamp: 'RMV 11/24/2024 18:20:14'!
 execute: sqlString
@@ -642,7 +648,7 @@ reset
 	conn := nil.
 	columns := nil.! !
 
-!ARBase class methodsFor: 'private' stamp: 'RMV 11/12/2024 18:54:23'!
+!ARBase class methodsFor: 'private' stamp: 'RMV 12/3/2024 19:52:45'!
 sqlString: value
 	"Answer string representation of value and include quotes if already a string."
 	^ value isString
@@ -966,6 +972,22 @@ tearDown
 	Todo disconnect.
 	! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:35:16'!
+testAccessors
+	| id newCompleted newDescription todo |
+
+	todo := Todo first.
+	id := todo id.
+
+	newDescription := 'learn Smalltalk'.
+	newCompleted := Todo trueValue.
+	todo description: newDescription.
+	todo completed: newCompleted.
+
+	todo := Todo find: id.
+	self assert: todo description equals: newDescription.
+	self assert: todo completed equals: newCompleted.! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:20:15'!
 testAll
 	| todos |
@@ -1165,6 +1187,15 @@ testQuoteIfString
 testReset
 	"The class method #reset is tested in the setup method."! !
 
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 19:40:12'!
+testRow
+	| newRow todo |
+
+	todo := Todo first.
+	newRow := 'some value'.
+	todo row: newRow.
+	self assert: todo row equals: newRow.! !
+
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:43:07'!
 testSQLString
 	| number text |
@@ -1206,25 +1237,28 @@ testUnsupportedDBType
 		raise: ActiveRecordError
 		"withMessageText: ['unsupported database type ', Todo dbType]."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:29:14'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:22:32'!
 testUpdate
-	| completed todo todos |
-	
-	todos := Todo findBy: #description -> 'buy milk'.
-	self assert: todos size equals: 1.
-	todo := todos first.
-	
-	completed := Todo trueValue.
-	todo update: {#completed -> completed}.
+	| id newCompleted newDescription todo |
 
-	todo := Todo find: todo id.
-	self assert: todo completed equals: completed.! !
+	todo := Todo first.
+	id := todo id.
+	
+	newDescription := 'learn Smalltalk'.
+	newCompleted := Todo trueValue.
+	todo update: { #description->newDescription. #completed->newCompleted }.
+	
+	todo := Todo find: id.
+	self assert: todo description equals: newDescription.
+	self assert: todo completed equals: newCompleted.
+! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 20:38:44'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/3/2024 20:37:25'!
 testUpdateAll
 	| todos |
 	
-	todos := Todo updateAll: {#completed->Todo trueValue}.
+	Todo updateAll: {#completed->Todo trueValue}.
+	todos := Todo all.
 	self assert: todos size equals: 3.
 	todos do: [:todo | self assert: todo completed equals: Todo trueValue].! !
 
