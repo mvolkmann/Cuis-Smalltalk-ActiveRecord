@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 3 December 2024 at 8:38:06 pm'!
+'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:02:18 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 143!
+!provides: 'ActiveRecord' 1 144!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -946,7 +946,7 @@ number: aNumber
 	TypeCheck check.
 	number := aNumber.! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/22/2024 18:51:42'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:00:16'!
 setUp	
 
 	dsn ifNil: [Error signal: 'dsn not set'].
@@ -963,8 +963,13 @@ setUp
 	
 	"Create three new rows."
 	descriptions := #('cut grass' 'buy milk' 'study Smalltalk').
-	descriptions do: [:description | Todo create: {#description -> description}].
-	self assert: Todo count equals: 3.! !
+	descriptions withIndexDo: [:description :index |
+		Todo create: {
+			#description -> description.
+			#completed -> (index even ifTrue: [Todo trueValue] ifFalse: [Todo falseValue])
+		}
+	].
+	self assert: Todo count equals: descriptions size.! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/16/2024 19:03:46'!
 tearDown
@@ -1106,7 +1111,7 @@ testExecute
 testFalseValue
 	self subclassResponsibility! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:26:14'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:01:01'!
 testFind
 	| description id todo todos |
 
@@ -1120,28 +1125,27 @@ testFind
 	todo := Todo find: id.
 
 	self assert: todo description equals: description.
-	self assert: todo isCompleted = false.
+	self assert: todo isCompleted.
 	! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:24:09'!
 testFindBy
 	"The class method #findBy is tested in the testFind method."! !
 
-!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/2/2024 10:29:08'!
+!DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:02:04'!
 testFindWhere
-	| description falseV todo todos |
+	| description todo todos |
 
-	falseV := Todo falseValue.
-	todos := Todo findWhere: {#completed->falseV}.
-	self assert: todos size equals: 3.
+	todos := Todo findWhere: {#completed->Todo falseValue}.
+	self assert: todos size equals: 2.
 
 	description := 'buy milk'.
-	todos := Todo findWhere: {#description->description. #completed->falseV}.
+	todos := Todo findWhere: {#description->description. #completed->Todo trueValue}.
 	self assert: todos size equals: 1.
 	
 	todo := todos first.
 	self assert: todo description equals: description.
-	self assert: todo isCompleted = false.
+	self assert: todo isCompleted.
 	! !
 
 !DBAbstractTests methodsFor: 'as yet unclassified' stamp: 'RMV 11/18/2024 20:23:06'!
