@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 4 December 2024 at 6:57:03 am'!
+'From Cuis7.1 [latest update: #6876] on 7 December 2024 at 6:16:07 am'!
 'Description '!
-!provides: 'ActiveRecord' 1 146!
+!provides: 'ActiveRecord' 1 149!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -28,7 +28,7 @@ ApplicationRecord class
 
 !classDefinition: #Dog category: #ActiveRecord!
 ApplicationRecord subclass: #Dog
-	instanceVariableNames: 'id breed name'
+	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
@@ -58,7 +58,7 @@ Person class
 
 !classDefinition: #Todo category: #ActiveRecord!
 ApplicationRecord subclass: #Todo
-	instanceVariableNames: 'id description completed'
+	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'ActiveRecord'!
@@ -181,8 +181,8 @@ SQLiteTests class
 This is the superclass of all classes that represents database tables.
 It adds "Active Record" functionality.!
 
-!ApplicationRecord commentStamp: 'RMV 11/10/2024 16:50:56' prior: 0!
-The purpose of this class is not yet clear to be, but it is present in Rails version 8.
+!ApplicationRecord commentStamp: 'RMV 12/7/2024 05:34:57' prior: 0!
+The purpose of this class is not yet clear to me, but it is present in Rails version 8.
 For now it is just a subclass of ARBase that doesn't add any functionality and
 classes that correspond to database tables are subclasses of ApplicationRecord instead of ARBase.!
 
@@ -391,9 +391,10 @@ logSQL: aBoolean
 
 	logSQL := aBoolean.! !
 
-!ARBase class methodsFor: 'accessing' stamp: 'RMV 11/10/2024 16:23:03'!
+!ARBase class methodsFor: 'accessing' stamp: 'RMV 12/7/2024 05:38:25'!
 tableName
-	"Answer table name that corresponds to current class, computed lazily."
+	"Answer table name that corresponds to current class, computed lazily.
+	It is the snake_case, plural version of the current class name."
 
 	tableName ifNil: [
 		| words |
@@ -956,18 +957,9 @@ number: aNumber
 	TypeCheck check.
 	number := aNumber.! !
 
-!Demo class methodsFor: 'as yet unclassified' stamp: 'RMV 12/4/2024 06:53:58'!
+!Demo class methodsFor: 'as yet unclassified' stamp: 'RMV 12/5/2024 15:09:06'!
 average: numberArray
-	| cache cacheKey valueKey |
-	
-	"Smalltalk is a SystemDictionary which is an IdentityDictionary.
-	That is way cacheKey must be a Symbol."
-	cacheKey := ('cache-', thisContext name) asSymbol.
-
-	cache := Smalltalk at: cacheKey ifAbsentPut: [ IdentityDictionary new ].
-	valueKey := thisContext name, thisContext arguments asString :: asSymbol.
-
-	^ cache at: valueKey ifAbsentPut: [
+	^ self memoize: [
 		| sum |
 		'computing average' print.
 		sum := numberArray fold: [:acc :n | acc + n].
