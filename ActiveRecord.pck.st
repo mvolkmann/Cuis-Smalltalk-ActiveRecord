@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6876] on 7 December 2024 at 6:16:07 am'!
+'From Cuis7.1 [latest update: #6883] on 9 December 2024 at 8:07:35 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 149!
+!provides: 'ActiveRecord' 1 152!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -417,13 +417,19 @@ disconnect
 		conn := nil.
 	]! !
 
-!ARBase class methodsFor: 'connecting' stamp: 'RMV 12/2/2024 10:17:48'!
+!ARBase class methodsFor: 'connecting' stamp: 'RMV 12/9/2024 20:07:05'!
 establishConnection: dsnSymbol dbType: dbtypeSymbol
 	"Open a connection to the database for a given DSN if not already open."
 	"TODO: Add support for getting username and password from '.odbc.ini'
 	by capturing output of 'odbcinst -q -s -n dsnString'?"
+	| envVar |
 	
 	TypeCheck check.
+	
+	envVar := 'DYLD_LIBRARY_PATH'.
+	self getenv: envVar :: ifNil: [
+		ActiveRecordError signal: ('environment variable {1} is not set' format: {envVar})
+	]. 
 	
 	dbType := dbtypeSymbol.
 	adapter := dbType caseOf: {
@@ -442,7 +448,13 @@ establishConnection: dsnSymbol dbType: dbtypeSymbol
 	].
 
 	conn ifNil: [
-		conn := ODBCConnection dsn: dsnSymbol user: '' password: ''.
+		[ conn := ODBCConnection dsn: dsnSymbol user: '' password: '' ]
+			on: ODBCError
+			do: [:ex |
+				| message |
+				message := 'failed to connect to {1} database for {2}' format: { dbtypeSymbol. dsnSymbol }.
+				ActiveRecordError signal: message.
+			]
 	].
 
 	adapter connection: conn.
@@ -1421,6 +1433,13 @@ testTrueValue
 !SQLiteTests class methodsFor: 'as yet unclassified' stamp: 'RMV 11/19/2024 20:56:03'!
 isAbstract
 	^false! !
+
+!Object methodsFor: '*ActiveRecord' stamp: 'RMV 12/9/2024 19:18:19'!
+getenv: aString
+	"Answer value of environment variable with the given name or nil if not found."
+
+	<cdecl: char* 'getenv' (char*) module: 'libSystem.dylib'>
+	^self externalCallFailed! !
 
 !CharacterSequence methodsFor: '*ActiveRecord' stamp: 'RMV 11/24/2024 11:02:32'!
 substringFromFirstUpper
