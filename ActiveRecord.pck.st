@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6883] on 9 December 2024 at 8:07:35 pm'!
+'From Cuis7.1 [latest update: #6883] on 10 December 2024 at 6:43:09 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 152!
+!provides: 'ActiveRecord' 1 153!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -968,15 +968,6 @@ number: aNumber
 
 	TypeCheck check.
 	number := aNumber.! !
-
-!Demo class methodsFor: 'as yet unclassified' stamp: 'RMV 12/5/2024 15:09:06'!
-average: numberArray
-	^ self memoize: [
-		| sum |
-		'computing average' print.
-		sum := numberArray fold: [:acc :n | acc + n].
-		sum / numberArray size.
-	].! !
 
 !ARBaseTests methodsFor: 'tests' stamp: 'RMV 12/4/2024 06:14:10'!
 testQuoteIfString
