@@ -1,6 +1,6 @@
-'From Cuis7.1 [latest update: #6883] on 10 December 2024 at 6:43:09 pm'!
+'From Cuis7.1 [latest update: #6968] on 8 January 2025 at 8:29:33 pm'!
 'Description '!
-!provides: 'ActiveRecord' 1 153!
+!provides: 'ActiveRecord' 1 154!
 !requires: 'ODBC' 1 9 nil!
 !requires: 'TypeCheck' 1 1 nil!
 SystemOrganization addCategory: #ActiveRecord!
@@ -528,7 +528,7 @@ destroyBy: anAssociation
 	^​ self execute: queryString.
 ! !
 
-!ARBase class methodsFor: 'retrieving' stamp: 'RMV 11/22/2024 18:30:47'!
+!ARBase class methodsFor: 'retrieving' stamp: 'RMV 1/8/2025 20:22:47'!
 all
 	"Answer a collection of instances of this class that represent all the rows in the corresponding table."
 	|rs|
@@ -1037,10 +1037,13 @@ setUp
 	].
 	self assert: Todo count equals: descriptions size.! !
 
-!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 11/16/2024 19:03:46'!
+!DBAbstractTests methodsFor: 'tests' stamp: 'RMV 1/8/2025 20:29:13'!
 tearDown
 
-	Todo disconnect.
+	"TODO: I had to comment this out because I started getting
+	an error from sending #close to an ODBCResultSet.
+	Maybe there was a recent breaking change in the ODBC package."
+	"Todo disconnect."
 	! !
 
 !DBAbstractTests methodsFor: 'tests' stamp: 'RMV 12/3/2024 20:35:16'!
